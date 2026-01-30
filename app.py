@@ -1,310 +1,223 @@
 import streamlit as st
-import pandas as pd
-import io
-import datetime
-from docx import Document
-from docx.shared import Pt, RGBColor, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+import sys
 
-# --- CONFIGURACIÓN INICIAL ---
+# --- 1. CONFIGURACIÓN DE PÁGINA (Debe ser lo primero) ---
 st.set_page_config(page_title="Athlos 360", page_icon="🦅")
 
-# --- FUNCIONES DE LÓGICA (EL CEREBRO) ---
+# --- 2. VERIFICACIÓN DE LIBRERÍAS (Anti-Error) ---
+try:
+    import pandas as pd
+    import openpyxl
+    from docx import Document
+    from docx.shared import Pt, RGBColor, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    import io
+    import datetime
+except ImportError as e:
+    st.error("🛑 ERROR CRÍTICO DE INSTALACIÓN")
+    st.warning(f"Falta una librería: {e}")
+    st.info("Por favor verifica que tu archivo 'requirements.txt' tenga: streamlit, pandas, openpyxl, python-docx")
+    st.stop()
+
+# --- 3. ESTILOS ---
+st.markdown("""
+    <style>
+    .main {background-color: #f4f6f9;}
+    .stButton>button {width: 100%; border-radius: 8px; background-color: #003366; color: white; padding: 10px;}
+    h1 {color: #003366;}
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("🦅 Athlos 360")
+st.write("Generador de Reportes de Alto Rendimiento")
+
+# --- 4. LÓGICA DE DATOS ---
 def clean_time(val):
-    # Convierte cualquier cosa a tiempo o devuelve 0
-    if pd.isna(val) or str(val).strip() in ['NC', '0', '', 'NAN', '-']: 
-        return pd.Timedelta(0)
+    if pd.isna(val) or str(val).strip() in ['NC', '0', '', 'NAN', '-']: return pd.Timedelta(0)
     try:
-        # Si ya es tiempo
         if isinstance(val, (datetime.time, datetime.datetime)):
             return pd.Timedelta(hours=val.hour, minutes=val.minute, seconds=val.second)
-        # Si es texto "hh:mm:ss"
-        parts = list(map(int, str(val).split(':')))
-        if len(parts) == 3: return pd.Timedelta(hours=parts[0], minutes=parts[1], seconds=parts[2])
-        if len(parts) == 2: return pd.Timedelta(minutes=parts[0], seconds=parts[1])
-    except:
-        pass
+        p = list(map(int, str(val).split(':')))
+        if len(p) == 3: return pd.Timedelta(hours=p[0], minutes=p[1], seconds=p[2])
+        if len(p) == 2: return pd.Timedelta(minutes=p[0], seconds=p[1])
+    except: pass
     return pd.Timedelta(0)
 
 def clean_float(val):
-    # Convierte texto a número decimal
-    try:
-        return float(str(val).replace(',', '.'))
-    except:
-        return 0.0
+    try: return float(str(val).replace(',', '.'))
+    except: return 0.0
 
 def fmt_val(val, tipo):
-    # Da formato bonito para el Word
     if val is None: return "-"
     if tipo == 'tiempo':
         if val.total_seconds() == 0: return "-"
         s = int(val.total_seconds())
         if s < 3600: return f"{s//60}m {s%60}s"
         return f"{s//3600}h {(s%3600)//60}m"
-    else:
-        return f"{val:.1f}" if val > 0 else "-"
+    return f"{val:.1f}" if val > 0 else "-"
 
-def procesar_datos(file_hist, file_sem):
-    # 1. Cargar Archivos
-    df_sem = pd.read_excel(file_sem, engine='openpyxl')
-    df_sem.columns = [str(c).strip() for c in df_sem.columns] # Limpiar nombres columnas
+def procesar(f_hist, f_sem):
+    df_sem = pd.read_excel(f_sem, engine='openpyxl')
+    df_sem.columns = [str(c).strip() for c in df_sem.columns]
     
-    xls = pd.ExcelFile(file_hist, engine='openpyxl')
+    xls = pd.ExcelFile(f_hist, engine='openpyxl')
     dfs_hist = {s: pd.read_excel(xls, sheet_name=s) for s in xls.sheet_names}
-
-    # 2. Configurar Métricas
+    
     METRICAS = {
-        'tot_tiempo': {'col': 'Tiempo Total (hh:mm:ss)', 'hist': 'Total', 'tipo': 'tiempo', 'lbl': 'Tiempo Total', 'u': ''},
-        'tot_dist':   {'col': 'Distancia Total (km)', 'hist': 'Distancia Total', 'tipo': 'float', 'lbl': 'Distancia', 'u': 'km'},
-        'tot_elev':   {'col': 'Altimetría Total (m)', 'hist': 'Altimetría', 'tipo': 'float', 'lbl': 'Desnivel', 'u': 'm'},
-        'cv':         {'col': 'CV (Equilibrio)', 'hist': 'CV', 'tipo': 'float', 'lbl': 'Consistencia', 'u': ''},
-        'nat_tiempo': {'col': 'Nat: Tiempo (hh:mm:ss)', 'hist': 'Natación', 'tipo': 'tiempo', 'lbl': 'Tiempo Nat', 'u': ''},
-        'bike_tiempo': {'col': 'Ciclismo: Tiempo (hh:mm:ss)', 'hist': 'Ciclismo', 'tipo': 'tiempo', 'lbl': 'Tiempo Bici', 'u': ''},
-        'run_tiempo': {'col': 'Trote: Tiempo (hh:mm:ss)', 'hist': 'Trote', 'tipo': 'tiempo', 'lbl': 'Tiempo Trote', 'u': ''}
-        # Puedes agregar más aquí si funcionan las básicas
+        'tot_tiempo': {'col': 'Tiempo Total (hh:mm:ss)', 'hist': 'Total', 't': 'tiempo', 'lbl': 'Tiempo Total', 'u': ''},
+        'tot_dist': {'col': 'Distancia Total (km)', 'hist': 'Distancia Total', 't': 'float', 'lbl': 'Distancia Total', 'u': 'km'},
+        'tot_elev': {'col': 'Altimetría Total (m)', 'hist': 'Altimetría', 't': 'float', 'lbl': 'Desnivel Total', 'u': 'm'},
+        'cv': {'col': 'CV (Equilibrio)', 'hist': 'CV', 't': 'float', 'lbl': 'Consistencia', 'u': ''},
+        'nat_tiempo': {'col': 'Nat: Tiempo (hh:mm:ss)', 'hist': 'Natación', 't': 'tiempo', 'lbl': 'Tiempo Nat', 'u': ''},
+        'bike_tiempo': {'col': 'Ciclismo: Tiempo (hh:mm:ss)', 'hist': 'Ciclismo', 't': 'tiempo', 'lbl': 'Tiempo Bici', 'u': ''},
+        'run_tiempo': {'col': 'Trote: Tiempo (hh:mm:ss)', 'hist': 'Trote', 't': 'tiempo', 'lbl': 'Tiempo Trote', 'u': ''}
     }
-
-    # 3. Calcular Promedios Equipo
-    avgs_club = {}
-    for k, info in METRICAS.items():
-        if info['col'] in df_sem.columns:
-            vals = df_sem[info['col']].apply(lambda x: clean_time(x) if info['tipo'] == 'tiempo' else clean_float(x))
-            if info['tipo'] == 'tiempo': 
-                validos = vals[vals > pd.Timedelta(0)]
-                avgs_club[k] = validos.mean() if not validos.empty else pd.Timedelta(0)
+    
+    # 1. Promedios Club
+    avgs = {}
+    for k, m in METRICAS.items():
+        if m['col'] in df_sem.columns:
+            vals = df_sem[m['col']].apply(lambda x: clean_time(x) if m['t']=='tiempo' else clean_float(x))
+            if m['t']=='tiempo': 
+                v = vals[vals > pd.Timedelta(0)]
+                avgs[k] = v.mean() if not v.empty else pd.Timedelta(0)
             else:
-                validos = vals[vals > 0]
-                avgs_club[k] = validos.mean() if not validos.empty else 0.0
-        else:
-            avgs_club[k] = None
-
-    # 4. Calcular Históricos Globales
-    avgs_hist_global = {}
-    for k, info in METRICAS.items():
-        target = next((s for s in dfs_hist.keys() if info['hist'].lower() in s.lower()), None)
+                v = vals[vals > 0]
+                avgs[k] = v.mean() if not v.empty else 0.0
+        else: avgs[k] = None
+        
+    # 2. Históricos Globales
+    avgs_h_glob = {}
+    for k, m in METRICAS.items():
+        target = next((s for s in dfs_hist if m['hist'].lower() in s.lower()), None)
         if target:
             df = dfs_hist[target]
             cols = [c for c in df.columns if 'sem' in c.lower()]
             vals = []
             for c in cols:
-                v_col = df[c].apply(lambda x: clean_time(x) if info['tipo'] == 'tiempo' else clean_float(x))
-                if info['tipo'] == 'tiempo': vals.extend([v.total_seconds() for v in v_col if v.total_seconds() > 0])
-                else: vals.extend([v for v in v_col if v > 0])
-            
+                v_col = df[c].apply(lambda x: clean_time(x) if m['t']=='tiempo' else clean_float(x))
+                if m['t']=='tiempo': vals.extend([v.total_seconds() for v in v_col if v.total_seconds()>0])
+                else: vals.extend([v for v in v_col if v>0])
             if vals:
-                if info['tipo'] == 'tiempo': avgs_hist_global[k] = pd.Timedelta(seconds=sum(vals)/len(vals))
-                else: avgs_hist_global[k] = sum(vals)/len(vals)
-            else: avgs_hist_global[k] = None
-        else:
-            avgs_hist_global[k] = None
+                if m['t']=='tiempo': avgs_h_glob[k] = pd.Timedelta(seconds=sum(vals)/len(vals))
+                else: avgs_h_glob[k] = sum(vals)/len(vals)
+            else: avgs_h_glob[k] = None
+        else: avgs_h_glob[k] = None
 
-    # 5. Procesar cada atleta
-    lista_final = []
-    # Buscar columna nombre
-    c_nom = next((c for c in df_sem.columns if c in ['Deportista', 'Nombre', 'Atleta']), None)
-    if not c_nom:
-        st.error(f"❌ No encuentro la columna 'Deportista' en el archivo semanal. Columnas vistas: {list(df_sem.columns)}")
-        return [], {}, {}
+    # 3. Atletas
+    data = []
+    c_nom = next((c for c in df_sem.columns if c in ['Deportista', 'Nombre']), None)
+    if not c_nom: return [], {}, {}
 
-    for _, row in df_sem.iterrows():
-        nombre = str(row[c_nom]).strip()
-        if nombre.lower() in ['nan', 'totales', 'promedio']: continue
+    for _, r in df_sem.iterrows():
+        nom = str(r[c_nom]).strip()
+        if nom.lower() in ['nan', 'totales']: continue
         
-        datos_atleta = {'name': nombre, 'metrics': {}}
-
-        for k, info in METRICAS.items():
-            # Dato actual
-            val_curr = clean_time(row.get(info['col'])) if info['tipo']=='tiempo' else clean_float(row.get(info['col']))
-            
-            # Dato histórico
-            val_hist = None
-            target = next((s for s in dfs_hist.keys() if info['hist'].lower() in s.lower()), None)
+        metrics = {}
+        for k, m in METRICAS.items():
+            curr = clean_time(r.get(m['col'])) if m['t']=='tiempo' else clean_float(r.get(m['col']))
+            hist = None
+            target = next((s for s in dfs_hist if m['hist'].lower() in s.lower()), None)
             if target:
-                df_h = dfs_hist[target]
-                c_n_h = next((c for c in df_h.columns if c.lower() in ['nombre','deportista']), None)
-                if c_n_h:
-                    fila = df_h[df_h[c_n_h].astype(str).str.lower().str.strip() == nombre.lower()]
-                    if not fila.empty:
-                        cols = [c for c in df_h.columns if 'sem' in c.lower()]
+                dfh = dfs_hist[target]
+                cnh = next((c for c in dfh.columns if c.lower() in ['nombre','deportista']), None)
+                if cnh:
+                    row_h = dfh[dfh[cnh].astype(str).str.lower().str.strip() == nom.lower()]
+                    if not row_h.empty:
+                        cols = [c for c in dfh.columns if 'sem' in c.lower()]
                         if cols:
-                            vs = [clean_time(fila.iloc[0][c]) if info['tipo']=='tiempo' else clean_float(fila.iloc[0][c]) for c in cols]
-                            if info['tipo']=='tiempo':
-                                vs = [v.total_seconds() for v in vs if v.total_seconds()>0]
-                                if vs: val_hist = pd.Timedelta(seconds=sum(vs)/len(vs))
+                            vs = [clean_time(row_h.iloc[0][c]) if m['t']=='tiempo' else clean_float(row_h.iloc[0][c]) for c in cols]
+                            if m['t']=='tiempo':
+                                vs = [x.total_seconds() for x in vs if x.total_seconds()>0]
+                                if vs: hist = pd.Timedelta(seconds=sum(vs)/len(vs))
                             else:
-                                vs = [v for v in vs if v > 0]
-                                if vs: val_hist = sum(vs)/len(vs)
-            
-            datos_atleta['metrics'][k] = {'val': val_curr, 'avg': avgs_club.get(k), 'hist': val_hist, 'meta': info}
+                                vs = [x for x in vs if x>0]
+                                if vs: hist = sum(vs)/len(vs)
+            metrics[k] = {'val': curr, 'avg': avgs.get(k), 'hist': hist, 'meta': m}
+        data.append({'name': nom, 'metrics': metrics})
         
-        lista_final.append(datos_atleta)
-    
-    return lista_final, avgs_club, avgs_hist_global
+    return data, avgs, avgs_h_glob
 
-def generar_word(lista, semana, avgs_sem, avgs_hist):
+def generar_word(data, sem_name, avgs, avgs_h):
     doc = Document()
-    style = doc.styles['Normal']
-    style.font.name = 'Calibri'
-    style.font.size = Pt(10.5)
-
-    # PORTADA
-    h = doc.add_heading("🦅 RESUMEN GLOBAL DEL EQUIPO", 0)
-    h.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph(f"Semana: {semana}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    style = doc.styles['Normal']; style.font.name = 'Calibri'; style.font.size = Pt(10.5)
     
-    table = doc.add_table(rows=1, cols=3)
-    table.style = 'Table Grid'
-    hdr = table.rows[0].cells
-    hdr[0].text = "Métrica"
-    hdr[1].text = "Promedio Semana"
-    hdr[2].text = "Promedio Anual"
+    # PORTADA
+    doc.add_heading("🦅 RESUMEN GLOBAL EQUIPO", 0).alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph(f"Reporte: {sem_name}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    t = doc.add_table(1, 3); t.style = 'Table Grid'
+    h = t.rows[0].cells; h[0].text="Métrica"; h[1].text="Prom. Semana"; h[2].text="Prom. Anual"
     
     keys = ['tot_tiempo', 'tot_dist', 'tot_elev', 'cv']
     for k in keys:
-        if k in avgs_sem: # Solo si existe la métrica
-            row = table.add_row().cells
-            # Obtenemos etiqueta y tipo de alguna ficha (truco sucio pero efectivo)
-            sample_meta = lista[0]['metrics'][k]['meta']
-            
-            row[0].text = sample_meta['lbl']
-            row[1].text = f"{fmt_val(avgs_sem[k], sample_meta['tipo'])} {sample_meta['u']}"
-            row[2].text = f"{fmt_val(avgs_hist[k], sample_meta['tipo'])} {sample_meta['u']}"
-
+        m = data[0]['metrics'][k]['meta']
+        r = t.add_row().cells
+        r[0].text = m['lbl']
+        r[1].text = f"{fmt_val(avgs.get(k), m['t'])} {m['u']}"
+        r[2].text = f"{fmt_val(avgs_h.get(k), m['t'])} {m['u']}"
+        
     doc.add_page_break()
-
+    
     # FICHAS
-    for i, d in enumerate(lista):
-        if i > 0: doc.add_page_break()
-        doc.add_heading(f"🦅 REPORTE: {d['name']}", level=1).alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for d in data:
+        doc.add_heading(f"🦅 {d['name']}", 1).alignment = WD_ALIGN_PARAGRAPH.CENTER
         doc.add_paragraph("─"*40).alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        m = d['metrics']
+        ms = d['metrics']
+        p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.add_run(f"⏱️ {fmt_val(ms['tot_tiempo']['val'],'tiempo')}  |  📏 {fmt_val(ms['tot_dist']['val'],'float')} km").bold=True
         
-        # Resumen
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        t_total = fmt_val(m['tot_tiempo']['val'], 'tiempo')
-        d_total = fmt_val(m['tot_dist']['val'], 'float')
-        p.add_run(f"⏱️ {t_total}   |   📏 {d_total} km").bold = True
+        # Tabla Detalle
+        td = doc.add_table(1, 4); td.autofit = True
+        hd = td.rows[0].cells; hd[0].text="Métrica"; hd[1].text="Dato"; hd[2].text="Vs Equipo"; hd[3].text="Vs Anual"
         
-        # Comparativa Texto
-        p2 = doc.add_paragraph()
-        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        # Vs Equipo
-        val = m['tot_tiempo']['val']
-        avg = m['tot_tiempo']['avg']
-        if val.total_seconds() > 0 and avg:
-            diff = val - avg
-            sign = "+" if diff.total_seconds() >= 0 else "-"
-            txt = f"Vs. Equipo: {sign}{fmt_val(abs(diff), 'tiempo')}"
-            run = p2.add_run(txt)
-            run.font.color.rgb = RGBColor(0,128,0) if diff.total_seconds() >= 0 else RGBColor(200,0,0)
-
-        p2.add_run("   |   ")
-
-        # Vs Histórico
-        hist = m['tot_tiempo']['hist']
-        if hist:
-            diff = val - hist
-            sign = "+" if diff.total_seconds() >= 0 else "-"
-            txt = f"Vs. Anual: {sign}{fmt_val(abs(diff), 'tiempo')}"
-            run = p2.add_run(txt)
-            run.font.color.rgb = RGBColor(0,128,0) if diff.total_seconds() >= 0 else RGBColor(200,0,0)
-        else:
-            p2.add_run("Vs. Anual: Nuevo Registro")
-
-        doc.add_paragraph("─"*40).alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        # Tabla Detalles
-        t = doc.add_table(rows=1, cols=4)
-        t.autofit = True
-        h = t.rows[0].cells
-        h[0].text="Métrica"; h[1].text="Tu Dato"; h[2].text="Vs Equipo"; h[3].text="Vs Anual"
-        
-        for k, item in m.items():
-            meta = item['meta']
-            val = item['val']
+        for k, item in ms.items():
+            m = item['meta']; v = item['val']
+            if m['t']=='tiempo' and v.total_seconds()==0: continue
+            if m['t']=='float' and v==0: continue
             
-            # Si es 0 saltamos para ahorrar espacio
-            if meta['tipo']=='tiempo' and val.total_seconds()==0: continue
-            if meta['tipo']=='float' and val==0: continue
+            row = td.add_row().cells
+            row[0].text = m['lbl']
+            row[1].text = f"{fmt_val(v, m['t'])} {m['u']}"
             
-            r = t.add_row().cells
-            r[0].text = meta['lbl']
-            r[1].text = f"{fmt_val(val, meta['tipo'])} {meta['u']}"
-            
-            # Vs Eq
             avg = item['avg']
             if avg:
-                if meta['tipo']=='tiempo': 
-                    diff = val - avg
-                    ok = diff.total_seconds() >= 0
-                    txt = f"{'+' if ok else '-'}{fmt_val(abs(diff), 'tiempo')}"
-                else:
-                    diff = val - avg
-                    ok = diff >= 0
-                    txt = f"{'+' if ok else '-'}{fmt_val(abs(diff), 'float')}"
-                r[2].text = txt
-            else:
-                r[2].text = "-"
-
-            # Vs Hist
+                if m['t']=='tiempo': ok = (v-avg).total_seconds()>=0
+                else: ok = (v-avg)>=0
+                row[2].text = f"{'+' if ok else '-'}"
+            
             hist = item['hist']
             if hist:
-                if meta['tipo']=='tiempo': 
-                    diff = val - hist
-                    ok = diff.total_seconds() >= 0
-                    txt = f"{'+' if ok else '-'}{fmt_val(abs(diff), 'tiempo')}"
-                else:
-                    diff = val - hist
-                    ok = diff >= 0
-                    txt = f"{'+' if ok else '-'}{fmt_val(abs(diff), 'float')}"
-                r[3].text = txt
-            else:
-                r[3].text = "New"
-
+                if m['t']=='tiempo': ok = (v-hist).total_seconds()>=0
+                else: ok = (v-hist)>=0
+                row[3].text = f"{'+' if ok else '-'}"
+            else: row[3].text = "New"
+            
         doc.add_paragraph("")
-        p_ins = doc.add_paragraph()
-        run = p_ins.add_run("💡 Insight: ")
-        run.bold = True
-        run.font.color.rgb = RGBColor(255, 100, 0)
-        p_ins.add_run("La consistencia construye campeones.")
-
+        if i < len(data)-1: doc.add_page_break()
+        
     bio = io.BytesIO()
-    doc.save(bio)
-    bio.seek(0)
+    doc.save(bio); bio.seek(0)
     return bio
 
-# --- INTERFAZ DE USUARIO (LO QUE VES) ---
-st.title("🦅 Athlos 360")
-st.write("Sube tus archivos para generar los reportes.")
-
-c1, c2 = st.columns(2)
-f_hist = c1.file_uploader("1. Histórico", type="xlsx")
-f_sem = c2.file_uploader("2. Semana", type="xlsx")
+# --- 5. INTERFAZ ---
+with st.sidebar:
+    f_hist = st.file_uploader("1. Histórico", type="xlsx")
+    f_sem = st.file_uploader("2. Semana", type="xlsx")
 
 if f_hist and f_sem:
-    if st.button("Generar Reporte", type="primary"):
+    if st.button("▶️ GENERAR", type="primary"):
         with st.spinner("Procesando..."):
             try:
-                # Ejecutar lógica
-                datos, avg_s, avg_h = procesar_datos(f_hist, f_sem)
-                
-                if not datos:
-                    st.warning("No se encontraron atletas o los archivos están vacíos.")
+                dat, av_s, av_h = procesar(f_hist, f_sem)
+                if not dat:
+                    st.warning("No se encontraron atletas.")
                 else:
-                    st.success(f"¡Listo! {len(datos)} atletas procesados.")
-                    
-                    # Generar Word
-                    word_file = generar_word(datos, f_sem.name, avg_s, avg_h)
-                    
-                    st.download_button(
-                        label="📥 Descargar Word",
-                        data=word_file,
-                        file_name=f"Reporte_Athlos_{f_sem.name.replace('.xlsx','')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    )
+                    st.success(f"¡Listo! {len(dat)} atletas.")
+                    bio = generar_word(dat, f_sem.name, av_s, av_h)
+                    st.download_button("📥 Descargar Word", bio, f"Reporte_{f_sem.name.replace('.xlsx','')}.docx")
             except Exception as e:
-                st.error("Ocurrió un error inesperado:")
-                st.error(e)
+                st.error(f"Error: {e}")
+else:
+    st.info("Sube los archivos en la barra lateral.")

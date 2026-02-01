@@ -6,23 +6,26 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-# --- TUS ENLACES DE GITHUB (Ya configurados) ---
+# --- TUS ENLACES (NO TOCAR) ---
 URL_HISTORICO = "https://raw.githubusercontent.com/dagoperezh-lgtm/athlos-360-app/main/00%20Estadi%CC%81sticas%20TYM_ACTUALIZADO_V21%20(1).xlsx"
 URL_SEMANA    = "https://raw.githubusercontent.com/dagoperezh-lgtm/athlos-360-app/main/06%20Sem%20(tst).xlsx"
 
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 
-# --- ESTILOS VISUALES ---
 st.markdown("""
     <style>
-    .main {background-color: #f4f6f9;}
-    h1 {color: #003366;}
-    div.stMetric {background-color: #ffffff; padding: 10px; border-radius: 5px; box-shadow: 1px 1px 3px rgba(0,0,0,0.1);}
+    .main {background-color: #f8f9fa;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; background-color: #003366; color: white;}
+    div[data-testid="stMetricValue"] {font-size: 1.2rem;}
     </style>
 """, unsafe_allow_html=True)
 
-# --- 1. FUNCIONES AUXILIARES (MATEMÁTICA V25) ---
+# =============================================================================
+# 1. MOTOR DE CÁLCULO Y FORMATO (Lógica V25 Restaurada)
+# =============================================================================
+
 def clean_time(val):
+    """Convierte Excel time a Timedelta de Pandas"""
     if pd.isna(val) or str(val).strip() in ['NC', '0', '', 'NAN', '-']: return pd.Timedelta(0)
     try:
         if isinstance(val, (datetime.time, datetime.datetime)):
@@ -37,307 +40,326 @@ def clean_float(val):
     try: return float(str(val).replace(',', '.'))
     except: return 0.0
 
-def fmt_val(val, tipo):
-    if val is None: return "-"
-    if tipo == 'tiempo':
-        if val.total_seconds() == 0: return "-"
-        s = int(abs(val.total_seconds()))
-        h, rem = divmod(s, 3600)
-        m, s = divmod(rem, 60)
-        if h > 0: return f"{h}h {m}m"
-        return f"{m}m {s}s"
+def fmt_time(td):
+    """Formatea Timedelta a '1h 30m' o '45m 10s'"""
+    if not isinstance(td, pd.Timedelta) or td.total_seconds() == 0: return "-"
+    total_s = int(abs(td.total_seconds()))
+    h, rem = divmod(total_s, 3600)
+    m, s = divmod(rem, 60)
+    if h > 0: return f"{h}h {m}m"
+    return f"{m}m {s}s"
+
+def fmt_decimal(val, decimals=1):
+    if val == 0: return "-"
+    return f"{val:.{decimals}f}"
+
+def get_comparison(val, avg, is_time, invert_logic=False):
+    """
+    Calcula diferencia, texto formateado y color.
+    invert_logic=True para Ritmos (menor es mejor).
+    """
+    if not avg or (is_time and avg.total_seconds() == 0) or (not is_time and avg == 0):
+        return None, "-", "grey"
+    
+    diff = val - avg
+    is_positive = diff.total_seconds() >= 0 if is_time else diff >= 0
+    
+    # Texto Diferencia
+    sign = "+" if is_positive else "-"
+    if is_time:
+        txt = f"{sign}{fmt_time(abs(diff))}"
     else:
-        return f"{val:.1f}"
+        txt = f"{sign}{fmt_decimal(abs(diff))}"
 
-# --- 2. CARGA DE DATOS ---
+    # Lógica de Color (V25)
+    # General: Más es Verde (+), Menos es Rojo (-)
+    # Invertido (Ritmos): Menos tiempo es Verde (-), Más tiempo es Rojo (+)
+    is_good = is_positive
+    if invert_logic:
+        is_good = not is_positive # Para ritmos, negativo es bueno (más rápido)
+
+    color = "green" if is_good else "red"
+    # Ajuste fino: Si es 0 o muy cerca, gris o verde
+    if (is_time and abs(diff.total_seconds()) < 1) or (not is_time and abs(diff) < 0.01):
+        color = "grey"
+        
+    return diff, txt, color
+
 @st.cache_data(ttl=600)
-def cargar_datos(url_h, url_s):
+def cargar_y_procesar(url_h, url_s):
     try:
-        df_s = pd.read_excel(url_s, engine='openpyxl')
-        df_s.columns = [str(c).strip() for c in df_s.columns]
+        # 1. Cargar
+        df_sem = pd.read_excel(url_s, engine='openpyxl')
+        df_sem.columns = [str(c).strip() for c in df_sem.columns]
         xls = pd.ExcelFile(url_h, engine='openpyxl')
-        dfs_h = {s: pd.read_excel(xls, sheet_name=s) for s in xls.sheet_names}
-        return df_s, dfs_h, None
+        dfs_hist = {s: pd.read_excel(xls, sheet_name=s) for s in xls.sheet_names}
+
+        # 2. Configurar Métricas
+        # key: {col_excel, sheet_hist, tipo, label, unit, invert_logic}
+        M = {
+            'tot_tiempo': {'c': 'Tiempo Total (hh:mm:ss)', 'h': 'Total', 't': 'time', 'l': 'Tiempo Total', 'u': '', 'inv': False},
+            'tot_dist':   {'c': 'Distancia Total (km)', 'h': 'Distancia Total', 't': 'float', 'l': 'Distancia Total', 'u': 'km', 'inv': False},
+            'tot_elev':   {'c': 'Altimetría Total (m)', 'h': 'Altimetría', 't': 'float', 'l': 'Desnivel Total', 'u': 'm', 'inv': False},
+            'cv':         {'c': 'CV (Equilibrio)', 'h': 'CV', 't': 'float', 'l': 'Consistencia', 'u': '', 'inv': False},
+            
+            'nat_tiempo': {'c': 'Nat: Tiempo (hh:mm:ss)', 'h': 'Natación', 't': 'time', 'l': 'Tiempo', 'u': '', 'inv': False},
+            'nat_dist':   {'c': 'Nat: Distancia (km)', 'h': 'Nat Distancia', 't': 'float', 'l': 'Distancia', 'u': 'km', 'inv': False},
+            'nat_ritmo':  {'c': 'Nat: Ritmo (min/100m)', 'h': 'Nat Ritmo', 't': 'time', 'l': 'Ritmo', 'u': '/100m', 'inv': True},
+            
+            'bike_tiempo': {'c': 'Ciclismo: Tiempo (hh:mm:ss)', 'h': 'Ciclismo', 't': 'time', 'l': 'Tiempo', 'u': '', 'inv': False},
+            'bike_dist':   {'c': 'Ciclismo: Distancia (km)', 'h': 'Ciclismo Distancia', 't': 'float', 'l': 'Distancia', 'u': 'km', 'inv': False},
+            'bike_elev':   {'c': 'Ciclismo: KOM/Desnivel (m)', 'h': 'Ciclismo Desnivel', 't': 'float', 'l': 'Desnivel', 'u': 'm', 'inv': False},
+            'bike_vel':    {'c': 'Ciclismo: Vel. Media (km/h)', 'h': 'Ciclismo Velocidad', 't': 'float', 'l': 'Velocidad', 'u': 'km/h', 'inv': False},
+            
+            'run_tiempo': {'c': 'Trote: Tiempo (hh:mm:ss)', 'h': 'Trote', 't': 'time', 'l': 'Tiempo', 'u': '', 'inv': False},
+            'run_dist':   {'c': 'Trote: Distancia (km)', 'h': 'Trote Distancia', 't': 'float', 'l': 'Distancia', 'u': 'km', 'inv': False},
+            'run_elev':   {'c': 'Trote: KOM/Desnivel (m)', 'h': 'Trote Desnivel', 't': 'float', 'l': 'Desnivel', 'u': 'm', 'inv': False},
+            'run_ritmo':  {'c': 'Trote: Ritmo (min/km)', 'h': 'Trote Ritmo', 't': 'time', 'l': 'Ritmo', 'u': '/km', 'inv': True},
+        }
+
+        # 3. Calcular Promedios Equipo
+        avgs_team = {}
+        for k, meta in M.items():
+            if meta['c'] in df_sem.columns:
+                raw = df_sem[meta['c']].apply(lambda x: clean_time(x) if meta['t']=='time' else clean_float(x))
+                if meta['t'] == 'time':
+                    valid = raw[raw > pd.Timedelta(0)]
+                    avgs_team[k] = valid.mean() if not valid.empty else pd.Timedelta(0)
+                else:
+                    valid = raw[raw > 0]
+                    avgs_team[k] = valid.mean() if not valid.empty else 0.0
+            else: avgs_team[k] = None
+
+        # 4. Calcular Promedios Históricos Globales
+        avgs_hist_global = {}
+        for k, meta in M.items():
+            target_s = next((s for s in dfs_hist if meta['h'].lower() in s.lower()), None)
+            if target_s:
+                dfh = dfs_hist[target_s]
+                cols = [c for c in dfh.columns if 'sem' in c.lower()]
+                vals = []
+                for c in cols:
+                    raw = dfh[c].apply(lambda x: clean_time(x) if meta['t']=='time' else clean_float(x))
+                    if meta['t']=='time': vals.extend([x.total_seconds() for x in raw if x.total_seconds()>0])
+                    else: vals.extend([x for x in raw if x>0])
+                
+                if vals:
+                    if meta['t']=='time': avgs_hist_global[k] = pd.Timedelta(seconds=sum(vals)/len(vals))
+                    else: avgs_hist_global[k] = sum(vals)/len(vals)
+                else: avgs_hist_global[k] = None
+            else: avgs_hist_global[k] = None
+
+        # 5. Procesar Atletas (Pre-calcular TODO)
+        atletas_procesados = []
+        c_nom = next((c for c in df_sem.columns if c in ['Deportista', 'Nombre']), None)
+        
+        if c_nom:
+            for _, row in df_sem.iterrows():
+                nom = str(row[c_nom]).strip()
+                if nom.lower() in ['nan', 'totales', 'promedio']: continue
+                
+                atleta_res = {'name': nom, 'data': {}}
+                
+                for k, meta in M.items():
+                    # Valor actual
+                    val = clean_time(row.get(meta['c'])) if meta['t']=='time' else clean_float(row.get(meta['c']))
+                    
+                    # Formato valor
+                    val_fmt = fmt_time(val) if meta['t']=='time' else fmt_decimal(val)
+                    
+                    # Histórico personal
+                    hist_val = None
+                    target_s = next((s for s in dfs_hist if meta['h'].lower() in s.lower()), None)
+                    if target_s:
+                        dfh = dfs_hist[target_s]
+                        cnh = next((c for c in dfh.columns if c.lower() in ['nombre','deportista']), None)
+                        if cnh:
+                            rh = dfh[dfh[cnh].astype(str).str.lower().str.strip() == nom.lower()]
+                            if not rh.empty:
+                                cols = [c for c in dfh.columns if 'sem' in c.lower()]
+                                vals_h = [clean_time(rh.iloc[0][c]) if meta['t']=='time' else clean_float(rh.iloc[0][c]) for c in cols]
+                                if meta['t']=='time':
+                                    valid = [x.total_seconds() for x in vals_h if x.total_seconds()>0]
+                                    if valid: hist_val = pd.Timedelta(seconds=sum(valid)/len(valid))
+                                else:
+                                    valid = [x for x in vals_h if x>0]
+                                    if valid: hist_val = sum(valid)/len(valid)
+
+                    # Comparativas (Vs Equipo)
+                    _, txt_eq, col_eq = get_comparison(val, avgs_team.get(k), meta['t']=='time', meta['inv'])
+                    
+                    # Comparativas (Vs Histórico)
+                    _, txt_hist, col_hist = get_comparison(val, hist_val, meta['t']=='time', meta['inv'])
+                    if not hist_val: txt_hist = "New"; col_hist = "blue"
+
+                    atleta_res['data'][k] = {
+                        'val': val, 'fmt': val_fmt, 
+                        'vs_eq': txt_eq, 'col_eq': col_eq,
+                        'vs_hist': txt_hist, 'col_hist': col_hist,
+                        'meta': meta
+                    }
+                
+                atletas_procesados.append(atleta_res)
+
+        return atletas_procesados, avgs_team, avgs_hist_global, None
+
     except Exception as e:
-        return None, None, str(e)
+        return [], {}, {}, str(e)
 
-# --- 3. PROCESAMIENTO LÓGICO (MOTOR V25 COMPLETO) ---
-def procesar(df_sem, dfs_hist):
-    # Diccionario Maestro de Métricas (No borrar nada)
-    METRICAS = {
-        'tot_tiempo': {'col': 'Tiempo Total (hh:mm:ss)', 'hist': 'Total', 't': 'tiempo', 'lbl': 'Tiempo Total', 'u': ''},
-        'tot_dist': {'col': 'Distancia Total (km)', 'hist': 'Distancia Total', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
-        'tot_elev': {'col': 'Altimetría Total (m)', 'hist': 'Altimetría', 't': 'float', 'lbl': 'Desnivel', 'u': 'm'},
-        'cv': {'col': 'CV (Equilibrio)', 'hist': 'CV', 't': 'float', 'lbl': 'Consistencia', 'u': ''},
-        
-        'nat_tiempo': {'col': 'Nat: Tiempo (hh:mm:ss)', 'hist': 'Natación', 't': 'tiempo', 'lbl': 'Tiempo', 'u': ''},
-        'nat_dist': {'col': 'Nat: Distancia (km)', 'hist': 'Nat Distancia', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
-        'nat_ritmo': {'col': 'Nat: Ritmo (min/100m)', 'hist': 'Nat Ritmo', 't': 'tiempo', 'lbl': 'Ritmo', 'u': '/100m'},
-        
-        'bike_tiempo': {'col': 'Ciclismo: Tiempo (hh:mm:ss)', 'hist': 'Ciclismo', 't': 'tiempo', 'lbl': 'Tiempo', 'u': ''},
-        'bike_dist': {'col': 'Ciclismo: Distancia (km)', 'hist': 'Ciclismo Distancia', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
-        'bike_elev': {'col': 'Ciclismo: KOM/Desnivel (m)', 'hist': 'Ciclismo Desnivel', 't': 'float', 'lbl': 'Desnivel', 'u': 'm'},
-        'bike_vel': {'col': 'Ciclismo: Vel. Media (km/h)', 'hist': 'Ciclismo Velocidad', 't': 'float', 'lbl': 'Velocidad', 'u': 'km/h'},
-        
-        'run_tiempo': {'col': 'Trote: Tiempo (hh:mm:ss)', 'hist': 'Trote', 't': 'tiempo', 'lbl': 'Tiempo', 'u': ''},
-        'run_dist': {'col': 'Trote: Distancia (km)', 'hist': 'Trote Distancia', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
-        'run_elev': {'col': 'Trote: KOM/Desnivel (m)', 'hist': 'Trote Desnivel', 't': 'float', 'lbl': 'Desnivel', 'u': 'm'},
-        'run_ritmo': {'col': 'Trote: Ritmo (min/km)', 'hist': 'Trote Ritmo', 't': 'tiempo', 'lbl': 'Ritmo', 'u': '/km'}
-    }
-
-    # 1. Calcular Promedios del Club
-    avgs_club = {}
-    for k, m in METRICAS.items():
-        if m['col'] in df_sem.columns:
-            raw = df_sem[m['col']].apply(lambda x: clean_time(x) if m['t']=='tiempo' else clean_float(x))
-            if m['t']=='tiempo':
-                valid = raw[raw > pd.Timedelta(0)]
-                avgs_club[k] = valid.mean() if not valid.empty else pd.Timedelta(0)
-            else:
-                valid = raw[raw > 0]
-                avgs_club[k] = valid.mean() if not valid.empty else 0.0
-        else: avgs_club[k] = None
-
-    # 2. Calcular Promedios Históricos Globales
-    avgs_hist = {}
-    for k, m in METRICAS.items():
-        target = next((s for s in dfs_hist if m['hist'].lower() in s.lower()), None)
-        if target:
-            cols = [c for c in dfs_hist[target].columns if 'sem' in c.lower()]
-            vals = []
-            for c in cols:
-                raw = dfs_hist[target][c].apply(lambda x: clean_time(x) if m['t']=='tiempo' else clean_float(x))
-                if m['t']=='tiempo': vals.extend([x.total_seconds() for x in raw if x.total_seconds()>0])
-                else: vals.extend([x for x in raw if x>0])
-            if vals:
-                if m['t']=='tiempo': avgs_hist[k] = pd.Timedelta(seconds=sum(vals)/len(vals))
-                else: avgs_hist[k] = sum(vals)/len(vals)
-            else: avgs_hist[k] = None
-        else: avgs_hist[k] = None
-
-    # 3. Procesar Atletas Individuales
-    data = []
-    c_nom = next((c for c in df_sem.columns if c in ['Deportista', 'Nombre']), None)
-    if not c_nom: return [], {}, {}
-
-    for _, r in df_sem.iterrows():
-        nom = str(r[c_nom]).strip()
-        if nom.lower() in ['nan', 'totales', 'promedio']: continue
-        
-        metrics = {}
-        for k, m in METRICAS.items():
-            # Valor Actual
-            curr = clean_time(r.get(m['col'])) if m['t']=='tiempo' else clean_float(r.get(m['col']))
-            
-            # Valor Histórico Personal
-            hist_personal = None
-            target = next((s for s in dfs_hist if m['hist'].lower() in s.lower()), None)
-            if target:
-                dh = dfs_hist[target]
-                cnh = next((c for c in dh.columns if c.lower() in ['nombre','deportista']), None)
-                if cnh:
-                    rh = dh[dh[cnh].astype(str).str.lower().str.strip() == nom.lower()]
-                    if not rh.empty:
-                        cols = [c for c in dh.columns if 'sem' in c.lower()]
-                        if cols:
-                            vs = [clean_time(rh.iloc[0][c]) if m['t']=='tiempo' else clean_float(rh.iloc[0][c]) for c in cols]
-                            if m['t']=='tiempo': 
-                                vs = [x.total_seconds() for x in vs if x.total_seconds()>0]
-                                if vs: hist_personal = pd.Timedelta(seconds=sum(vs)/len(vs))
-                            else:
-                                vs = [x for x in vs if x>0]
-                                if vs: hist_personal = sum(vs)/len(vs)
-            
-            metrics[k] = {'val': curr, 'avg': avgs_club.get(k), 'hist': hist_personal, 'meta': m}
-        data.append({'name': nom, 'metrics': metrics})
-        
-    return data, avgs_club, avgs_hist
-
-# --- 4. GENERADOR WORD (LÓGICA COMPARATIVA V25 REINSTAURADA) ---
-def generar_word(data, team_avg, hist_avg):
+# =============================================================================
+# 2. GENERADOR WORD (Usa los datos pre-calculados)
+# =============================================================================
+def generar_word_v32(datos, avs_team, avs_hist):
     doc = Document()
-    style = doc.styles['Normal']
-    style.font.name = 'Calibri'
-    style.font.size = Pt(10.5)
+    style = doc.styles['Normal']; style.font.name = 'Calibri'; style.font.size = Pt(10)
     
-    # PORTADA
+    # Portada
     h1 = doc.add_heading("🦅 RESUMEN GLOBAL EQUIPO", 0)
-    h1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph("Reporte Semanal Automático").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    h1.alignment = WD_ALIGN_PARAGRAPH.CENTER; h1.runs[0].font.color.rgb = RGBColor(0, 51, 102)
+    doc.add_paragraph("Reporte V32 - Análisis Completo").alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    t = doc.add_table(rows=1, cols=3)
-    t.style = 'Table Grid'
-    hdr = t.rows[0].cells
-    hdr[0].text = "METRICA"
-    hdr[1].text = "PROM SEMANA"
-    hdr[2].text = "PROM ANUAL"
+    # Tabla Resumen
+    t = doc.add_table(rows=1, cols=3); t.style = 'Table Grid'
+    hdr = t.rows[0].cells; hdr[0].text="MÉTRICA"; hdr[1].text="SEM ACTUAL"; hdr[2].text="HIST ANUAL"
     
-    keys = ['tot_tiempo', 'tot_dist', 'tot_elev', 'cv']
-    for k in keys:
-        m = data[0]['metrics'][k]['meta']
+    keys_res = ['tot_tiempo', 'tot_dist', 'tot_elev', 'cv']
+    for k in keys_res:
+        if not datos: break
+        meta = datos[0]['data'][k]['meta']
         r = t.add_row().cells
-        r[0].text = m['lbl']
-        r[1].text = f"{fmt_val(team_avg.get(k), m['t'])} {m['u']}"
-        r[2].text = f"{fmt_val(hist_avg.get(k), m['t'])} {m['u']}"
-    
+        r[0].text = meta['l']
+        
+        val_team = avs_team.get(k)
+        r[1].text = fmt_time(val_team) if meta['t']=='time' else fmt_decimal(val_team)
+        
+        val_hist = avs_hist.get(k)
+        r[2].text = fmt_time(val_hist) if meta['t']=='time' else fmt_decimal(val_hist)
     doc.add_page_break()
 
-    # FICHAS ATLETAS
-    for i, d in enumerate(data):
+    # Fichas
+    for d in datos:
         doc.add_heading(f"🦅 {d['name']}", 1).alignment = WD_ALIGN_PARAGRAPH.CENTER
         doc.add_paragraph("─"*40).alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        m = d['metrics']
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.add_run(f"⏱️ {fmt_val(m['tot_tiempo']['val'], 'tiempo')} | 📏 {fmt_val(m['tot_dist']['val'], 'float')} km").bold = True
+        m = d['data']
+        # Resumen Superior
+        p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(f"⏱️ {m['tot_tiempo']['fmt']} | 📏 {m['tot_dist']['fmt']} km | ⛰️ {m['tot_elev']['fmt']} m")
+        run.bold = True; run.font.size = Pt(11)
         
-        # TABLAS POR DEPORTE (CON COMPARATIVAS REALES)
-        def tabla_deporte(titulo, keys):
+        # Función interna tabla
+        def tabla_bloque(titulo, keys):
             # Check actividad
-            act = False
+            has_act = False
             for k in keys:
-                val = m[k]['val']
-                if m[k]['meta']['t']=='tiempo' and val.total_seconds()>0: act=True
-                elif m[k]['meta']['t']!='tiempo' and val>0: act=True
+                if m[k]['meta']['t']=='time' and m[k]['val'].total_seconds()>0: has_act=True
+                elif m[k]['meta']['t']!='time' and m[k]['val']>0: has_act=True
             
-            p = doc.add_paragraph()
-            p.add_run(titulo).bold = True
-            p.add_run(" (Sin actividad)" if not act else "").font.color.rgb = RGBColor(150,150,150)
-            
-            if not act: return
+            p_tit = doc.add_paragraph()
+            r_tit = p_tit.add_run(titulo); r_tit.bold=True; r_tit.font.color.rgb = RGBColor(0,51,102)
+            if not has_act:
+                p_tit.add_run(" (Sin actividad)").font.color.rgb = RGBColor(150,150,150)
+                return
 
-            tb = doc.add_table(rows=1, cols=4)
-            tb.autofit = True
+            tb = doc.add_table(rows=1, cols=4); tb.autofit = True
             hd = tb.rows[0].cells
             hd[0].text="Métrica"; hd[1].text="Dato"; hd[2].text="Vs Eq"; hd[3].text="Vs Hist"
             
             for k in keys:
                 item = m[k]
-                meta = item['meta']
-                val = item['val']
-                avg = item['avg']
-                hist = item['hist']
+                # Skip ceros
+                if (item['meta']['t']=='time' and item['val'].total_seconds()==0) or (item['meta']['t']!='time' and item['val']==0): continue
                 
-                # Filtrar ceros
-                if (meta['t']=='tiempo' and val.total_seconds()==0) or (meta['t']!='tiempo' and val==0): continue
+                row = tb.add_row().cells
+                row[0].text = item['meta']['l']
+                row[1].text = f"{item['fmt']} {item['meta']['u']}"
                 
-                r = tb.add_row().cells
-                r[0].text = meta['lbl']
-                r[1].text = f"{fmt_val(val, meta['t'])}{meta['u']}"
+                # Vs Eq
+                req = row[2].paragraphs[0].add_run(item['vs_eq'])
+                req.font.color.rgb = RGBColor(0,100,0) if item['col_eq']=='green' else (RGBColor(180,0,0) if item['col_eq']=='red' else RGBColor(100,100,100))
                 
-                # Lógica de Comparación (Vs Equipo)
-                if avg:
-                    if meta['t'] == 'tiempo':
-                        diff = val - avg
-                        txt = f"{'+' if diff.total_seconds()>=0 else '-'}{fmt_val(abs(diff.total_seconds()), 'float')}" # Simplificado para evitar error timedelta format
-                        # Formateo manual bonito para diff tiempo
-                        s = int(abs(diff.total_seconds()))
-                        txt = f"{'+' if diff.total_seconds()>=0 else '-'}{s//60}m {s%60}s"
-                        ok = diff.total_seconds() >= 0
-                    else:
-                        diff = val - avg
-                        txt = f"{diff:+.1f}"
-                        ok = diff >= 0
-                    
-                    if 'Ritmo' in meta['lbl']: ok = not ok # Ritmo menor es mejor
-                    
-                    run = r[2].paragraphs[0].add_run(txt)
-                    run.font.color.rgb = RGBColor(0,100,0) if ok else RGBColor(180,0,0)
-                else: r[2].text = "-"
+                # Vs Hist
+                rhist = row[3].paragraphs[0].add_run(item['vs_hist'])
+                rhist.font.color.rgb = RGBColor(0,100,0) if item['col_hist']=='green' else (RGBColor(180,0,0) if item['col_hist']=='red' else RGBColor(0,0,128))
+            
+            doc.add_paragraph("")
 
-                # Lógica de Comparación (Vs Histórico)
-                if hist:
-                    if meta['t'] == 'tiempo':
-                        diff = val - hist
-                        s = int(abs(diff.total_seconds()))
-                        txt = f"{'+' if diff.total_seconds()>=0 else '-'}{s//60}m {s%60}s"
-                        ok = diff.total_seconds() >= 0
-                    else:
-                        diff = val - hist
-                        txt = f"{diff:+.1f}"
-                        ok = diff >= 0
-                    
-                    if 'Ritmo' in meta['lbl']: ok = not ok
-                    
-                    run = r[3].paragraphs[0].add_run(txt)
-                    run.font.color.rgb = RGBColor(0,100,0) if ok else RGBColor(180,0,0)
-                else: 
-                    r[3].text = "New"
-
-        tabla_deporte("🏊 NATACIÓN", ['nat_tiempo','nat_dist','nat_ritmo'])
-        tabla_deporte("🚴 CICLISMO", ['bike_tiempo','bike_dist','bike_elev','bike_vel'])
-        tabla_deporte("🏃 TROTE", ['run_tiempo','run_dist','run_elev','run_ritmo'])
+        tabla_bloque("🏊 NATACIÓN", ['nat_tiempo','nat_dist','nat_ritmo'])
+        tabla_bloque("🚴 CICLISMO", ['bike_tiempo','bike_dist','bike_elev','bike_vel'])
+        tabla_bloque("🏃 TROTE", ['run_tiempo','run_dist','run_elev','run_ritmo'])
         
-        doc.add_paragraph("")
-        if i < len(data)-1: doc.add_page_break()
+        # CV footer
+        pcv = doc.add_paragraph()
+        pcv.add_run(f"⚖️ Consistencia: {m['cv']['fmt']} ").bold=True
+        pcv.add_run(m['cv']['vs_eq']).font.color.rgb = RGBColor(0,100,0) if m['cv']['col_eq']=='green' else RGBColor(180,0,0)
+        
+        doc.add_paragraph("─"*40).alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if d != datos[-1]: doc.add_page_break()
 
     bio = io.BytesIO()
-    doc.save(bio)
-    bio.seek(0)
+    doc.save(bio); bio.seek(0)
     return bio
 
-# --- 5. INTERFAZ WEB ---
+# =============================================================================
+# 3. INTERFAZ WEB (Dashboard con Comparativas)
+# =============================================================================
 st.title("🦅 Athlos 360")
-st.caption("Sistema V31: Datos Completos + Comparativas + GitHub Automático")
+st.caption("Sistema V32 - Datos V25 Restaurados")
 
-if st.button("🔄 Actualizar Datos"):
+if st.button("🔄 Recargar Datos"):
     st.cache_data.clear()
     st.experimental_rerun()
 
-with st.spinner("Cargando base de datos..."):
-    df_s, dfs_h, err = cargar_datos(URL_HISTORICO, URL_SEMANA)
+with st.spinner("Procesando historial completo..."):
+    datos, avs_team, avs_hist, err = cargar_y_procesar(URL_HISTORICO, URL_SEMANA)
 
 if err:
-    st.error(f"Error de conexión: {err}")
+    st.error(f"Error: {err}")
 else:
-    datos, avs, avh = procesar(df_s, dfs_h)
-    
-    tab1, tab2 = st.tabs(["📊 Dashboard Detallado", "📥 Descargas"])
+    tab1, tab2 = st.tabs(["📊 Dashboard Atleta", "📄 Descargar Reporte"])
     
     with tab1:
-        # SELECTOR DE ATLETA
-        names = [d['name'] for d in datos]
-        sel = st.selectbox("Seleccionar Atleta:", names)
-        atleta = next((d for d in datos if d['name'] == sel), None)
+        st.subheader("Análisis Individual")
+        nombres = [d['name'] for d in datos]
+        sel = st.selectbox("Buscar Atleta:", nombres)
         
+        atleta = next((d for d in datos if d['name'] == sel), None)
         if atleta:
-            m = atleta['metrics']
+            m = atleta['data']
             
-            # KPI PRINCIPALES
+            # KPI Header
             k1, k2, k3, k4 = st.columns(4)
-            k1.metric("Tiempo Total", fmt_val(m['tot_tiempo']['val'], 'tiempo'))
-            k2.metric("Distancia Total", fmt_val(m['tot_dist']['val'], 'float') + " km")
-            k3.metric("Desnivel", fmt_val(m['tot_elev']['val'], 'float') + " m")
-            k4.metric("Consistencia", fmt_val(m['cv']['val'], 'float'))
+            k1.metric("Tiempo Total", m['tot_tiempo']['fmt'], delta=m['tot_tiempo']['vs_eq'] + " (Vs Eq)")
+            k2.metric("Distancia", m['tot_dist']['fmt'] + " km", delta=m['tot_dist']['vs_eq'])
+            k3.metric("Desnivel", m['tot_elev']['fmt'] + " m", delta=m['tot_elev']['vs_eq'])
+            k4.metric("Consistencia", m['cv']['fmt'], delta=m['cv']['vs_eq'])
             
             st.divider()
             
-            # TABLAS DE DETALLE EN PANTALLA (LO QUE FALTABA)
-            c_nat, c_bike, c_run = st.columns(3)
+            # Detalle por deporte (Con comparativas en delta)
+            c1, c2, c3 = st.columns(3)
             
-            with c_nat:
-                st.markdown("### 🏊 Natación")
-                st.write(f"⏱️ **Tiempo:** {fmt_val(m['nat_tiempo']['val'], 'tiempo')}")
-                st.write(f"📏 **Distancia:** {fmt_val(m['nat_dist']['val'], 'float')} km")
-                st.write(f"⚡ **Ritmo:** {fmt_val(m['nat_ritmo']['val'], 'tiempo')}/100m")
+            with c1:
+                st.markdown("##### 🏊 Natación")
+                st.metric("Tiempo", m['nat_tiempo']['fmt'], delta=m['nat_tiempo']['vs_eq'])
+                st.metric("Distancia", m['nat_dist']['fmt']+" km", delta=m['nat_dist']['vs_eq'])
+                st.metric("Ritmo", m['nat_ritmo']['fmt']+"/100", delta=m['nat_ritmo']['vs_eq'], delta_color="inverse") # Inverse para ritmo
                 
-            with c_bike:
-                st.markdown("### 🚴 Ciclismo")
-                st.write(f"⏱️ **Tiempo:** {fmt_val(m['bike_tiempo']['val'], 'tiempo')}")
-                st.write(f"📏 **Distancia:** {fmt_val(m['bike_dist']['val'], 'float')} km")
-                st.write(f"⛰️ **Desnivel:** {fmt_val(m['bike_elev']['val'], 'float')} m")
-                st.write(f"🚀 **Velocidad:** {fmt_val(m['bike_vel']['val'], 'float')} km/h")
+            with c2:
+                st.markdown("##### 🚴 Ciclismo")
+                st.metric("Tiempo", m['bike_tiempo']['fmt'], delta=m['bike_tiempo']['vs_eq'])
+                st.metric("Distancia", m['bike_dist']['fmt']+" km", delta=m['bike_dist']['vs_eq'])
+                st.metric("Velocidad", m['bike_vel']['fmt']+" km/h", delta=m['bike_vel']['vs_eq'])
                 
-            with c_run:
-                st.markdown("### 🏃 Trote")
-                st.write(f"⏱️ **Tiempo:** {fmt_val(m['run_tiempo']['val'], 'tiempo')}")
-                st.write(f"📏 **Distancia:** {fmt_val(m['run_dist']['val'], 'float')} km")
-                st.write(f"⛰️ **Desnivel:** {fmt_val(m['run_elev']['val'], 'float')} m")
-                st.write(f"⚡ **Ritmo:** {fmt_val(m['run_ritmo']['val'], 'tiempo')}/km")
+            with c3:
+                st.markdown("##### 🏃 Trote")
+                st.metric("Tiempo", m['run_tiempo']['fmt'], delta=m['run_tiempo']['vs_eq'])
+                st.metric("Distancia", m['run_dist']['fmt']+" km", delta=m['run_dist']['vs_eq'])
+                st.metric("Ritmo", m['run_ritmo']['fmt']+"/km", delta=m['run_ritmo']['vs_eq'], delta_color="inverse")
 
     with tab2:
-        st.write("Generar Reporte Word con comparativas detalladas (Vs Equipo y Vs Histórico).")
-        if st.button("📄 Generar Word V31", type="primary"):
-            doc_io = generar_word(datos, avs, avh)
-            st.download_button("📥 Descargar Reporte Completo", doc_io, "Reporte_Athlos_V31.docx")
+        st.success(f"✅ Se han procesado {len(datos)} atletas correctamente.")
+        st.write("El reporte Word incluye las comparaciones detalladas (Vs Equipo y Vs Histórico) con semáforo de colores.")
+        if st.button("Generar Word (V32)", type="primary"):
+            doc_io = generar_word_v32(datos, avs_team, avs_hist)
+            st.download_button("📥 Descargar .DOCX", doc_io, "Reporte_Athlos_V32.docx")

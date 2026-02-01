@@ -6,13 +6,12 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-# --- TUS ENLACES (CONFIGURADOS) ---
+# --- TUS ENLACES (YA CONFIGURADOS) ---
 URL_HISTORICO = "https://raw.githubusercontent.com/dagoperezh-lgtm/athlos-360-app/main/00%20Estadi%CC%81sticas%20TYM_ACTUALIZADO_V21%20(1).xlsx"
 URL_SEMANA    = "https://raw.githubusercontent.com/dagoperezh-lgtm/athlos-360-app/main/06%20Sem%20(tst).xlsx"
 
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 
-# Estilos para que las tablas se vean profesionales en web
 st.markdown("""
     <style>
     .main {background-color: #f4f6f9;}
@@ -22,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =============================================================================
-# 1. MOTOR LÓGICO (Cálculos V25)
+# 1. MOTOR LÓGICO
 # =============================================================================
 
 def clean_time(val):
@@ -52,8 +51,12 @@ def fmt_decimal(val):
     if val == 0: return "-"
     return f"{val:.1f}"
 
-def calc_diff(val, avg, is_time):
-    """Retorna (Texto Diferencia, Color)"""
+def calc_diff(val, avg, is_time, invert_logic=False):
+    """
+    Retorna (Texto Diferencia, Color)
+    Verde = Por encima del promedio (o mejor ritmo)
+    Rojo = Por debajo del promedio (o peor ritmo)
+    """
     if not avg or (is_time and avg.total_seconds()==0) or (not is_time and avg==0):
         return "-", "grey"
     
@@ -63,8 +66,14 @@ def calc_diff(val, avg, is_time):
     sign = "+" if is_pos else "-"
     txt = f"{sign}{fmt_time(abs(diff))}" if is_time else f"{sign}{fmt_decimal(abs(diff))}"
     
-    # LÓGICA V25: Positivo = Verde, Negativo = Rojo (Incluso para Ritmos, según foto)
-    color = "green" if is_pos else "red"
+    # LÓGICA DE COLOR (V25)
+    # Por defecto: Positivo (+) es Verde (Más volumen/distancia es bueno)
+    # Invertido (Ritmos): Negativo (-) es Verde (Menos tiempo es más rápido/bueno)
+    is_good = is_pos
+    if invert_logic:
+        is_good = not is_pos 
+
+    color = "green" if is_good else "red"
     return txt, color
 
 @st.cache_data(ttl=600)
@@ -75,26 +84,26 @@ def cargar_procesar_datos(url_h, url_s):
         xls = pd.ExcelFile(url_h, engine='openpyxl')
         dfs_hist = {s: pd.read_excel(xls, sheet_name=s) for s in xls.sheet_names}
 
-        # Configuración V25 exacta
+        # Configuración de Métricas
         M = {
-            'tot_tiempo': {'c': 'Tiempo Total (hh:mm:ss)', 'h': 'Total', 't': 'time', 'l': 'Tiempo Total', 'u': ''},
-            'tot_dist':   {'c': 'Distancia Total (km)', 'h': 'Distancia Total', 't': 'float', 'l': 'Distancia Total', 'u': 'km'},
-            'tot_elev':   {'c': 'Altimetría Total (m)', 'h': 'Altimetría', 't': 'float', 'l': 'Desnivel Total', 'u': 'm'},
-            'cv':         {'c': 'CV (Equilibrio)', 'h': 'CV', 't': 'float', 'l': 'Consistencia', 'u': ''},
+            'tot_tiempo': {'c': 'Tiempo Total (hh:mm:ss)', 'h': 'Total', 't': 'time', 'l': 'Tiempo Total', 'u': '', 'inv': False},
+            'tot_dist':   {'c': 'Distancia Total (km)', 'h': 'Distancia Total', 't': 'float', 'l': 'Distancia Total', 'u': 'km', 'inv': False},
+            'tot_elev':   {'c': 'Altimetría Total (m)', 'h': 'Altimetría', 't': 'float', 'l': 'Desnivel Total', 'u': 'm', 'inv': False},
+            'cv':         {'c': 'CV (Equilibrio)', 'h': 'CV', 't': 'float', 'l': 'Consistencia', 'u': '', 'inv': False},
             
-            'nat_tiempo': {'c': 'Nat: Tiempo (hh:mm:ss)', 'h': 'Natación', 't': 'time', 'l': 'Tiempo', 'u': ''},
-            'nat_dist':   {'c': 'Nat: Distancia (km)', 'h': 'Nat Distancia', 't': 'float', 'l': 'Distancia', 'u': 'km'},
-            'nat_ritmo':  {'c': 'Nat: Ritmo (min/100m)', 'h': 'Nat Ritmo', 't': 'time', 'l': 'Ritmo', 'u': '/100m'},
+            'nat_tiempo': {'c': 'Nat: Tiempo (hh:mm:ss)', 'h': 'Natación', 't': 'time', 'l': 'Tiempo', 'u': '', 'inv': False},
+            'nat_dist':   {'c': 'Nat: Distancia (km)', 'h': 'Nat Distancia', 't': 'float', 'l': 'Distancia', 'u': 'km', 'inv': False},
+            'nat_ritmo':  {'c': 'Nat: Ritmo (min/100m)', 'h': 'Nat Ritmo', 't': 'time', 'l': 'Ritmo', 'u': '/100m', 'inv': True},
             
-            'bike_tiempo': {'c': 'Ciclismo: Tiempo (hh:mm:ss)', 'h': 'Ciclismo', 't': 'time', 'l': 'Tiempo', 'u': ''},
-            'bike_dist':   {'c': 'Ciclismo: Distancia (km)', 'h': 'Ciclismo Distancia', 't': 'float', 'l': 'Distancia', 'u': 'km'},
-            'bike_elev':   {'c': 'Ciclismo: KOM/Desnivel (m)', 'h': 'Ciclismo Desnivel', 't': 'float', 'l': 'Desnivel', 'u': 'm'},
-            'bike_vel':    {'c': 'Ciclismo: Vel. Media (km/h)', 'h': 'Ciclismo Velocidad', 't': 'float', 'l': 'Vel. Media', 'u': ' km/h'},
+            'bike_tiempo': {'c': 'Ciclismo: Tiempo (hh:mm:ss)', 'h': 'Ciclismo', 't': 'time', 'l': 'Tiempo', 'u': '', 'inv': False},
+            'bike_dist':   {'c': 'Ciclismo: Distancia (km)', 'h': 'Ciclismo Distancia', 't': 'float', 'l': 'Distancia', 'u': 'km', 'inv': False},
+            'bike_elev':   {'c': 'Ciclismo: KOM/Desnivel (m)', 'h': 'Ciclismo Desnivel', 't': 'float', 'l': 'Desnivel', 'u': 'm', 'inv': False},
+            'bike_vel':    {'c': 'Ciclismo: Vel. Media (km/h)', 'h': 'Ciclismo Velocidad', 't': 'float', 'l': 'Vel. Media', 'u': ' km/h', 'inv': False},
             
-            'run_tiempo': {'c': 'Trote: Tiempo (hh:mm:ss)', 'h': 'Trote', 't': 'time', 'l': 'Tiempo', 'u': ''},
-            'run_dist':   {'c': 'Trote: Distancia (km)', 'h': 'Trote Distancia', 't': 'float', 'l': 'Distancia', 'u': 'km'},
-            'run_elev':   {'c': 'Trote: KOM/Desnivel (m)', 'h': 'Trote Desnivel', 't': 'float', 'l': 'Desnivel', 'u': 'm'},
-            'run_ritmo':  {'c': 'Trote: Ritmo (min/km)', 'h': 'Trote Ritmo', 't': 'time', 'l': 'Ritmo', 'u': '/km'},
+            'run_tiempo': {'c': 'Trote: Tiempo (hh:mm:ss)', 'h': 'Trote', 't': 'time', 'l': 'Tiempo', 'u': '', 'inv': False},
+            'run_dist':   {'c': 'Trote: Distancia (km)', 'h': 'Trote Distancia', 't': 'float', 'l': 'Distancia', 'u': 'km', 'inv': False},
+            'run_elev':   {'c': 'Trote: KOM/Desnivel (m)', 'h': 'Trote Desnivel', 't': 'float', 'l': 'Desnivel', 'u': 'm', 'inv': False},
+            'run_ritmo':  {'c': 'Trote: Ritmo (min/km)', 'h': 'Trote Ritmo', 't': 'time', 'l': 'Ritmo', 'u': '/km', 'inv': True},
         }
 
         # 1. Promedios Club
@@ -160,8 +169,8 @@ def cargar_procesar_datos(url_h, url_s):
                                     if valid: hist_val = sum(valid)/len(valid)
 
                     # Comparaciones
-                    txt_eq, col_eq = calc_diff(val, avgs_team.get(k), m['t']=='time')
-                    txt_hist, col_hist = calc_diff(val, hist_val, m['t']=='time')
+                    txt_eq, col_eq = calc_diff(val, avgs_team.get(k), m['t']=='time', m['inv'])
+                    txt_hist, col_hist = calc_diff(val, hist_val, m['t']=='time', m['inv'])
                     
                     if not hist_val: txt_hist = "New"; col_hist = "blue"
 
@@ -180,9 +189,9 @@ def cargar_procesar_datos(url_h, url_s):
         return [], {}, {}, str(e)
 
 # =============================================================================
-# 2. GENERADOR WORD (REPLICA V25)
+# 2. GENERADOR WORD (Headers Actualizados)
 # =============================================================================
-def generar_word_v34(data, avs_team, avs_hist):
+def generar_word_v35(data, avs_team, avs_hist):
     doc = Document()
     style = doc.styles['Normal']; style.font.name = 'Calibri'; style.font.size = Pt(10)
     
@@ -217,12 +226,12 @@ def generar_word_v34(data, avs_team, avs_hist):
         
         # Comparativas Generales
         p2 = doc.add_paragraph(); p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run1 = p2.add_run(f"Vs Equipo: {m['tot_tiempo']['eq_txt']}   ")
+        run1 = p2.add_run(f"Vs Promedio del Equipo: {m['tot_tiempo']['eq_txt']}   ")
         run1.font.color.rgb = RGBColor(0,100,0) if m['tot_tiempo']['eq_col']=='green' else RGBColor(180,0,0)
-        run2 = p2.add_run(f"Vs Histórico: {m['tot_tiempo']['hist_txt']}")
+        run2 = p2.add_run(f"Vs tu Promedio Histórico: {m['tot_tiempo']['hist_txt']}")
         run2.font.color.rgb = RGBColor(0,100,0) if m['tot_tiempo']['hist_col']=='green' else (RGBColor(0,0,128) if m['tot_tiempo']['hist_col']=='blue' else RGBColor(180,0,0))
 
-        def tabla_v25(titulo, keys):
+        def tabla_v35(titulo, keys):
             has_act = False
             for k in keys:
                 if (m[k]['raw_type']=='time' and m[k]['raw_val'].total_seconds()>0) or (m[k]['raw_type']!='time' and m[k]['raw_val']>0): has_act=True
@@ -232,7 +241,7 @@ def generar_word_v34(data, avs_team, avs_hist):
 
             tb = doc.add_table(rows=1, cols=4); tb.autofit = True
             hd = tb.rows[0].cells
-            hd[0].text="Métrica"; hd[1].text="Dato"; hd[2].text="Vs Equipo"; hd[3].text="Vs Hist"
+            hd[0].text="Métrica"; hd[1].text="Dato"; hd[2].text="Vs Promedio del Equipo"; hd[3].text="Vs tu Promedio Histórico"
             
             for k in keys:
                 item = m[k]
@@ -249,9 +258,9 @@ def generar_word_v34(data, avs_team, avs_hist):
                 rhist.font.color.rgb = RGBColor(0,100,0) if item['hist_col']=='green' else (RGBColor(0,0,128) if item['hist_col']=='blue' else RGBColor(180,0,0))
             doc.add_paragraph("")
 
-        tabla_v25("🏊 NATACIÓN", ['nat_tiempo','nat_dist','nat_ritmo'])
-        tabla_v25("🚴 CICLISMO", ['bike_tiempo','bike_dist','bike_elev','bike_vel'])
-        tabla_v25("🏃 TROTE", ['run_tiempo','run_dist','run_elev','run_ritmo'])
+        tabla_v35("🏊 NATACIÓN", ['nat_tiempo','nat_dist','nat_ritmo'])
+        tabla_v35("🚴 CICLISMO", ['bike_tiempo','bike_dist','bike_elev','bike_vel'])
+        tabla_v35("🏃 TROTE", ['run_tiempo','run_dist','run_elev','run_ritmo'])
         
         doc.add_paragraph("─"*40).alignment = WD_ALIGN_PARAGRAPH.CENTER
         doc.add_paragraph("💡 Insight: La consistencia es el camino al éxito.").italic = True
@@ -262,10 +271,10 @@ def generar_word_v34(data, avs_team, avs_hist):
     return bio
 
 # =============================================================================
-# 3. INTERFAZ WEB (TABLAS IDÉNTICAS AL REPORTE)
+# 3. INTERFAZ WEB (HEADERS ACTUALIZADOS)
 # =============================================================================
 st.title("🦅 Athlos 360")
-st.caption("Sistema V34 - Réplica Exacta V25")
+st.caption("Sistema V35 - Full Detail")
 
 if st.button("🔄 Refrescar Datos"):
     st.cache_data.clear()
@@ -296,24 +305,20 @@ else:
             
             st.divider()
 
-            # FUNCIÓN PARA PINTAR TABLAS EN PANTALLA (NO METRICS)
+            # TABLAS CON NOMBRES CORRECTOS
             def mostrar_tabla_web(titulo, keys):
                 st.markdown(f"#### {titulo}")
                 
-                # Crear datos para tabla
                 rows = []
                 for k in keys:
                     item = m[k]
-                    # Skip ceros
                     if (item['raw_type']=='time' and item['raw_val'].total_seconds()==0) or (item['raw_type']!='time' and item['raw_val']==0): continue
                     
                     rows.append({
                         "Métrica": item['meta']['l'],
                         "Dato": item['val'],
-                        "Vs Equipo": item['eq_txt'],
-                        "Vs Histórico": item['hist_txt'],
-                        "_col_eq": item['eq_col'], # Oculto para lógica
-                        "_col_hist": item['hist_col']
+                        "Vs Promedio del Equipo": item['eq_txt'],
+                        "Vs tu Promedio Histórico": item['hist_txt']
                     })
                 
                 if not rows:
@@ -322,7 +327,7 @@ else:
 
                 df = pd.DataFrame(rows)
                 
-                # Estilizar la tabla (Colores)
+                # Función de color
                 def color_col(val):
                     color = 'black'
                     if '+' in str(val): color = 'green'
@@ -331,7 +336,7 @@ else:
                     return f'color: {color}; font-weight: bold;'
 
                 st.dataframe(
-                    df.style.map(color_col, subset=['Vs Equipo', 'Vs Histórico']),
+                    df.style.map(color_col, subset=['Vs Promedio del Equipo', 'Vs tu Promedio Histórico']),
                     hide_index=True,
                     use_container_width=True
                 )
@@ -343,6 +348,6 @@ else:
 
     with tab2:
         st.success("Reporte listo para descargar.")
-        if st.button("Generar Word (V34)", type="primary"):
-            doc_io = generar_word_v34(datos, avs_team, avs_hist)
-            st.download_button("📥 Descargar Reporte", doc_io, "Reporte_Athlos_V34.docx")
+        if st.button("Generar Word (V35)", type="primary"):
+            doc_io = generar_word_v35(datos, avs_team, avs_hist)
+            st.download_button("📥 Descargar Reporte", doc_io, "Reporte_Athlos_V35.docx")

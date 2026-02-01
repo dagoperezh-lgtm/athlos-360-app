@@ -33,8 +33,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. FUNCIONES DE CARGA (CON CACHÉ) ---
-# Usamos caché para que no descargue los archivos cada vez que tocas un botón
-@st.cache_data(ttl=600)  # Se actualiza cada 10 minutos automáticamente
+@st.cache_data(ttl=600)
 def cargar_datos_github(url_hist, url_sem):
     try:
         # Leer directamente desde la URL
@@ -74,75 +73,80 @@ def fmt_val(val, tipo):
     return f"{val:.1f}" if val > 0 else "-"
 
 def procesar_logica(df_sem, dfs_hist):
-    # Definición de Métricas
-    METRICAS = {
-        'tot_tiempo': {'col': 'Tiempo Total (hh:mm:ss)', 'hist': 'Total', 't': 'tiempo', 'lbl': 'Tiempo Total', 'u': ''},
-        'tot_dist': {'col': 'Distancia Total (km)', 'hist': 'Distancia Total', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
-        'tot_elev': {'col': 'Altimetría Total (m)', 'hist': 'Altimetría', 't': 'float', 'lbl': 'Desnivel', 'u': 'm'},
-        'cv': {'col': 'CV (Equilibrio)', 'hist': 'CV', 't': 'float', 'lbl': 'Consistencia', 'u': ''},
-        'nat_tiempo': {'col': 'Nat: Tiempo (hh:mm:ss)', 'hist': 'Natación', 't': 'tiempo', 'lbl': 'Natación', 'u': ''},
-        'bike_tiempo': {'col': 'Ciclismo: Tiempo (hh:mm:ss)', 'hist': 'Ciclismo', 't': 'tiempo', 'lbl': 'Ciclismo', 'u': ''},
-        'run_tiempo': {'col': 'Trote: Tiempo (hh:mm:ss)', 'hist': 'Trote', 't': 'tiempo', 'lbl': 'Trote', 'u': ''}
-    }
+    try:
+        # Definición de Métricas
+        METRICAS = {
+            'tot_tiempo': {'col': 'Tiempo Total (hh:mm:ss)', 'hist': 'Total', 't': 'tiempo', 'lbl': 'Tiempo Total', 'u': ''},
+            'tot_dist': {'col': 'Distancia Total (km)', 'hist': 'Distancia Total', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
+            'tot_elev': {'col': 'Altimetría Total (m)', 'hist': 'Altimetría', 't': 'float', 'lbl': 'Desnivel', 'u': 'm'},
+            'cv': {'col': 'CV (Equilibrio)', 'hist': 'CV', 't': 'float', 'lbl': 'Consistencia', 'u': ''},
+            'nat_tiempo': {'col': 'Nat: Tiempo (hh:mm:ss)', 'hist': 'Natación', 't': 'tiempo', 'lbl': 'Natación', 'u': ''},
+            'bike_tiempo': {'col': 'Ciclismo: Tiempo (hh:mm:ss)', 'hist': 'Ciclismo', 't': 'tiempo', 'lbl': 'Ciclismo', 'u': ''},
+            'run_tiempo': {'col': 'Trote: Tiempo (hh:mm:ss)', 'hist': 'Trote', 't': 'tiempo', 'lbl': 'Trote', 'u': ''}
+        }
 
-    # 1. Promedios Club
-    avgs_club = {}
-    for k, m in METRICAS.items():
-        if m['col'] in df_sem.columns:
-            vals = df_sem[m['col']].apply(lambda x: clean_time(x) if m['t']=='tiempo' else clean_float(x))
-            v = vals[vals > (pd.Timedelta(0) if m['t']=='tiempo' else 0)]
-            avgs_club[k] = v.mean() if not v.empty else (pd.Timedelta(0) if m['t']=='tiempo' else 0)
-        else: avgs_club[k] = None
+        # 1. Promedios Club
+        avgs_club = {}
+        for k, m in METRICAS.items():
+            if m['col'] in df_sem.columns:
+                vals = df_sem[m['col']].apply(lambda x: clean_time(x) if m['t']=='tiempo' else clean_float(x))
+                v = vals[vals > (pd.Timedelta(0) if m['t']=='tiempo' else 0)]
+                avgs_club[k] = v.mean() if not v.empty else (pd.Timedelta(0) if m['t']=='tiempo' else 0)
+            else: avgs_club[k] = None
 
-    # 2. Históricos Globales
-    avgs_hist_global = {}
-    for k, m in METRICAS.items():
-        target = next((s for s in dfs_hist if m['hist'].lower() in s.lower()), None)
-        if target:
-            cols = [c for c in dfs_hist[target].columns if 'sem' in c.lower()]
-            vals = []
-            for c in cols:
-                v = dfs_hist[target][c].apply(lambda x: clean_time(x) if m['t']=='tiempo' else clean_float(x))
-                if m['t']=='tiempo': vals.extend([x.total_seconds() for x in v if x.total_seconds()>0])
-                else: vals.extend([x for x in v if x>0])
-            if vals:
-                avgs_hist_global[k] = pd.Timedelta(seconds=sum(vals)/len(vals)) if m['t']=='tiempo' else sum(vals)/len(vals)
+        # 2. Históricos Globales
+        avgs_hist_global = {}
+        for k, m in METRICAS.items():
+            target = next((s for s in dfs_hist if m['hist'].lower() in s.lower()), None)
+            if target:
+                cols = [c for c in dfs_hist[target].columns if 'sem' in c.lower()]
+                vals = []
+                for c in cols:
+                    v = dfs_hist[target][c].apply(lambda x: clean_time(x) if m['t']=='tiempo' else clean_float(x))
+                    if m['t']=='tiempo': vals.extend([x.total_seconds() for x in v if x.total_seconds()>0])
+                    else: vals.extend([x for x in v if x>0])
+                if vals:
+                    avgs_hist_global[k] = pd.Timedelta(seconds=sum(vals)/len(vals)) if m['t']=='tiempo' else sum(vals)/len(vals)
+                else: avgs_hist_global[k] = None
             else: avgs_hist_global[k] = None
-        else: avgs_hist_global[k] = None
 
-    # 3. Atletas Individuales
-    lista_final = []
-    c_nom = next((c for c in df_sem.columns if c in ['Deportista', 'Nombre']), None)
-    
-    if c_nom:
-        for _, r in df_sem.iterrows():
-            nom = str(r[c_nom]).strip()
-            if nom.lower() in ['nan', 'totales', 'promedio']: continue
-            
-            metrics = {}
-            for k, m in METRICAS.items():
-                curr = clean_time(r.get(m['col'])) if m['t']=='tiempo' else clean_float(r.get(m['col']))
-                h_val = None
-                target = next((s for s in dfs_hist if m['hist'].lower() in s.lower()), None)
-                if target:
-                    dh = dfs_hist[target]
-                    cnh = next((c for c in dh.columns if c.lower() in ['nombre','deportista']), None)
-                    if cnh:
-                        rh = dh[dh[cnh].astype(str).str.lower().str.strip() == nom.lower()]
-                        if not rh.empty:
-                            cols = [c for c in dh.columns if 'sem' in c.lower()]
-                            if cols:
-                                vs = [clean_time(rh.iloc[0][c]) if m['t']=='tiempo' else clean_float(rh.iloc[0][c]) for c in cols]
-                                if m['t']=='tiempo': 
-                                    vs = [x.total_seconds() for x in vs if x.total_seconds()>0]
-                                    if vs: h_val = pd.Timedelta(seconds=sum(vs)/len(vs))
-                                else:
-                                    vs = [x for x in vs if x>0]
-                                    if vs: h_val = sum(vs)/len(vs)
-                metrics[k] = {'val': curr, 'avg': avgs_club.get(k), 'hist': h_val, 'meta': m}
-            lista_final.append({'name': nom, 'metrics': metrics})
+        # 3. Atletas Individuales
+        lista_final = []
+        c_nom = next((c for c in df_sem.columns if c in ['Deportista', 'Nombre']), None)
         
-    return lista_final, avgs_club, avgs_hist_global
+        if c_nom:
+            for _, r in df_sem.iterrows():
+                nom = str(r[c_nom]).strip()
+                if nom.lower() in ['nan', 'totales', 'promedio']: continue
+                
+                metrics = {}
+                for k, m in METRICAS.items():
+                    curr = clean_time(r.get(m['col'])) if m['t']=='tiempo' else clean_float(r.get(m['col']))
+                    h_val = None
+                    target = next((s for s in dfs_hist if m['hist'].lower() in s.lower()), None)
+                    if target:
+                        dh = dfs_hist[target]
+                        cnh = next((c for c in dh.columns if c.lower() in ['nombre','deportista']), None)
+                        if cnh:
+                            rh = dh[dh[cnh].astype(str).str.lower().str.strip() == nom.lower()]
+                            if not rh.empty:
+                                cols = [c for c in dh.columns if 'sem' in c.lower()]
+                                if cols:
+                                    vs = [clean_time(rh.iloc[0][c]) if m['t']=='tiempo' else clean_float(rh.iloc[0][c]) for c in cols]
+                                    if m['t']=='tiempo': 
+                                        vs = [x.total_seconds() for x in vs if x.total_seconds()>0]
+                                        if vs: h_val = pd.Timedelta(seconds=sum(vs)/len(vs))
+                                    else:
+                                        vs = [x for x in vs if x>0]
+                                        if vs: h_val = sum(vs)/len(vs)
+                    metrics[k] = {'val': curr, 'avg': avgs_club.get(k), 'hist': h_val, 'meta': m}
+                lista_final.append({'name': nom, 'metrics': metrics})
+            
+        # AQUÍ ESTABA EL ERROR: AHORA DEVOLVEMOS 4 VALORES
+        return lista_final, avgs_club, avgs_hist_global, None
+
+    except Exception as e:
+        return [], {}, {}, str(e)
 
 def generar_word_v27(data, team_avg, hist_avg):
     doc = Document()
@@ -200,7 +204,7 @@ def generar_word_v27(data, team_avg, hist_avg):
     doc.save(bio); bio.seek(0)
     return bio
 
-# --- 4. INTERFAZ PRINCIPAL (SIN SIDEBAR) ---
+# --- 4. INTERFAZ PRINCIPAL ---
 
 st.title("🦅 Athlos 360")
 st.caption("Panel de Control del Club TYM")
@@ -222,7 +226,7 @@ else:
         st.error(f"❌ Error de Conexión: {err}")
         st.info("Asegúrate de que los links sean 'Raw' y que el repositorio sea 'Public'.")
     else:
-        # Procesar
+        # Procesar (AHORA SÍ COINCIDEN LOS 4 VALORES)
         datos, avs, avh, err_proc = procesar_logica(df_s, dfs_h)
         
         if err_proc:

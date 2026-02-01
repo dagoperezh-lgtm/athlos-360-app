@@ -9,8 +9,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 # ==============================================================================
 # 👇👇👇 CONFIGURACIÓN DE ENLACES (PEGA TUS LINKS AQUÍ) 👇👇👇
 # ==============================================================================
-URL_HISTORICO = "PEGAR_AQUI_LINK_RAW_DEL_HISTORICO"
-URL_SEMANA    = "PEGAR_AQUI_LINK_RAW_DE_LA_SEMANA"
+URL_HISTORICO = "https://github.com/dagoperezh-lgtm/athlos-360-app/raw/refs/heads/main/00%20Estadi%CC%81sticas%20TYM_ACTUALIZADO_V21%20(1).xlsx"
+URL_SEMANA    = "https://github.com/dagoperezh-lgtm/athlos-360-app/raw/refs/heads/main/06%20Sem%20(tst).xlsx"
 # 🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺
 
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")

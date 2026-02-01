@@ -6,29 +6,23 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-# ==============================================================================
-# 👇👇👇 TUS ENLACES YA CONFIGURADOS 👇👇👇
-# ==============================================================================
-URL_HISTORICO = "https://github.com/dagoperezh-lgtm/athlos-360-app/raw/refs/heads/main/00%20Estadi%CC%81sticas%20TYM_ACTUALIZADO_V21%20(1).xlsx"
-URL_SEMANA    = "https://github.com/dagoperezh-lgtm/athlos-360-app/raw/refs/heads/main/06%20Sem%20(tst).xlsx"
-# 🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺🔺
-
+# --- 1. CONFIGURACIÓN E INICIO ---
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
+st.title("🦅 Athlos 360")
+st.write("✅ Sistema Iniciado...") # Chivato 1: Si ves esto, la app vive.
 
-st.markdown("""
-    <style>
-    .main {background-color: #f8f9fa;}
-    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; background-color: #003366; color: white;}
-    h1, h2, h3 {color: #003366;}
-    </style>
-""", unsafe_allow_html=True)
+# --- 2. TUS ENLACES (Corregidos a formato RAW directo) ---
+URL_HISTORICO = "https://raw.githubusercontent.com/dagoperezh-lgtm/athlos-360-app/main/00%20Estadi%CC%81sticas%20TYM_ACTUALIZADO_V21%20(1).xlsx"
+URL_SEMANA    = "https://raw.githubusercontent.com/dagoperezh-lgtm/athlos-360-app/main/06%20Sem%20(tst).xlsx"
 
-# --- 1. FUNCIONES BASE ---
+# --- 3. FUNCIONES DE CARGA Y PROCESAMIENTO ---
 @st.cache_data(ttl=600)
 def cargar_datos_github(url_hist, url_sem):
     try:
         df_sem = pd.read_excel(url_sem, engine='openpyxl')
+        # Limpiar nombres de columnas
         df_sem.columns = [str(c).strip() for c in df_sem.columns]
+        
         xls = pd.ExcelFile(url_hist, engine='openpyxl')
         dfs_hist = {s: pd.read_excel(xls, sheet_name=s) for s in xls.sheet_names}
         return df_sem, dfs_hist, None
@@ -66,16 +60,13 @@ def procesar_logica(df_sem, dfs_hist):
             'tot_dist': {'col': 'Distancia Total (km)', 'hist': 'Distancia Total', 't': 'float', 'lbl': 'Distancia Total', 'u': 'km'},
             'tot_elev': {'col': 'Altimetría Total (m)', 'hist': 'Altimetría', 't': 'float', 'lbl': 'Desnivel Total', 'u': 'm'},
             'cv': {'col': 'CV (Equilibrio)', 'hist': 'CV', 't': 'float', 'lbl': 'Consistencia (CV)', 'u': ''},
-            
             'nat_tiempo': {'col': 'Nat: Tiempo (hh:mm:ss)', 'hist': 'Natación', 't': 'tiempo', 'lbl': 'Tiempo', 'u': ''},
             'nat_dist': {'col': 'Nat: Distancia (km)', 'hist': 'Nat Distancia', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
             'nat_ritmo': {'col': 'Nat: Ritmo (min/100m)', 'hist': 'Nat Ritmo', 't': 'tiempo', 'lbl': 'Ritmo', 'u': ' /100m'},
-            
             'bike_tiempo': {'col': 'Ciclismo: Tiempo (hh:mm:ss)', 'hist': 'Ciclismo', 't': 'tiempo', 'lbl': 'Tiempo', 'u': ''},
             'bike_dist': {'col': 'Ciclismo: Distancia (km)', 'hist': 'Ciclismo Distancia', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
             'bike_elev': {'col': 'Ciclismo: KOM/Desnivel (m)', 'hist': 'Ciclismo Desnivel', 't': 'float', 'lbl': 'Desnivel', 'u': 'm'},
             'bike_vel': {'col': 'Ciclismo: Vel. Media (km/h)', 'hist': 'Ciclismo Velocidad', 't': 'float', 'lbl': 'Vel. Media', 'u': ' km/h'},
-            
             'run_tiempo': {'col': 'Trote: Tiempo (hh:mm:ss)', 'hist': 'Trote', 't': 'tiempo', 'lbl': 'Tiempo', 'u': ''},
             'run_dist': {'col': 'Trote: Distancia (km)', 'hist': 'Trote Distancia', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
             'run_elev': {'col': 'Trote: KOM/Desnivel (m)', 'hist': 'Trote Desnivel', 't': 'float', 'lbl': 'Desnivel', 'u': 'm'},
@@ -136,13 +127,11 @@ def procesar_logica(df_sem, dfs_hist):
                 lista_final.append({'name': nom, 'metrics': metrics})
             
         return lista_final, avgs_club, avgs_hist_global, None
-
     except Exception as e:
         return [], {}, {}, str(e)
 
-# --- 2. GENERACIÓN WORD (Helper Externo para evitar errores de indentación) ---
+# --- 4. GENERACIÓN WORD ---
 def agregar_tabla_deporte(doc, m, titulo, keys_dep):
-    # Lógica separada para limpieza
     act = False
     for k in keys_dep:
         if m[k]['meta']['t']=='tiempo' and m[k]['val'].total_seconds()>0: act=True
@@ -172,7 +161,6 @@ def agregar_tabla_deporte(doc, m, titulo, keys_dep):
             if 'Ritmo' in meta['lbl']: ok = not ok
             row[2].text = "+" if ok else "-"
         else: row[2].text = "-"
-        
         if hval:
             if meta['t']=='tiempo': ok = (val-hval).total_seconds()>=0
             else: ok = (val-hval)>=0
@@ -181,7 +169,7 @@ def agregar_tabla_deporte(doc, m, titulo, keys_dep):
         else: row[3].text = "New"
     doc.add_paragraph("")
 
-def generar_word_v29(data, team_avg, hist_avg):
+def generar_word_v30(data, team_avg, hist_avg):
     doc = Document()
     style = doc.styles['Normal']; style.font.name = 'Calibri'; style.font.size = Pt(10.5)
     
@@ -195,3 +183,68 @@ def generar_word_v29(data, team_avg, hist_avg):
     keys = ['tot_tiempo', 'tot_dist', 'tot_elev', 'cv']
     for k in keys:
         if not data: break
+        m = data[0]['metrics'][k]['meta']
+        r = t.add_row().cells
+        r[0].text = m['lbl']
+        r[1].text = f"{fmt_val(team_avg.get(k), m['t'])} {m['u']}"
+        r[2].text = f"{fmt_val(hist_avg.get(k), m['t'])} {m['u']}"
+    doc.add_page_break()
+
+    for d in data:
+        doc.add_heading(f"🦅 {d['name']}", level=1).alignment = WD_ALIGN_PARAGRAPH.CENTER
+        doc.add_paragraph("─"*40).alignment = WD_ALIGN_PARAGRAPH.CENTER
+        m = d['metrics']
+        p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.add_run(f"⏱️ {fmt_val(m['tot_tiempo']['val'],'tiempo')} | 📏 {fmt_val(m['tot_dist']['val'],'float')} km").bold=True
+        
+        agregar_tabla_deporte(doc, m, "🏊 NATACIÓN", ['nat_tiempo','nat_dist','nat_ritmo'])
+        agregar_tabla_deporte(doc, m, "🚴 CICLISMO", ['bike_tiempo','bike_dist','bike_elev','bike_vel'])
+        agregar_tabla_deporte(doc, m, "🏃 TROTE", ['run_tiempo','run_dist','run_elev','run_ritmo'])
+        
+        doc.add_paragraph("─"*40).alignment = WD_ALIGN_PARAGRAPH.CENTER
+        doc.add_paragraph("💡 Insight: La consistencia es el camino al éxito.").italic = True
+        if d != data[-1]: doc.add_page_break()
+
+    bio = io.BytesIO()
+    doc.save(bio); bio.seek(0)
+    return bio
+
+# --- 5. EJECUCIÓN PRINCIPAL ---
+st.caption("Panel de Control Automático - V30 (Stable)")
+
+if st.button("🔄 Forzar Actualización de Datos"):
+    st.cache_data.clear()
+    st.experimental_rerun()
+
+with st.spinner("Conectando con GitHub..."):
+    df_s, dfs_h, err = cargar_datos_github(URL_HISTORICO, URL_SEMANA)
+
+if err:
+    st.error(f"❌ Error de Conexión: {err}")
+    st.write("Verifica que los archivos existan en GitHub y el repositorio sea 'Public'.")
+else:
+    st.success("✅ Datos cargados correctamente.")
+    datos, avs, avh, err_proc = procesar_logica(df_s, dfs_h)
+    
+    if err_proc:
+        st.error(f"Error procesando datos: {err_proc}")
+    else:
+        tab1, tab2 = st.tabs(["📊 Dashboard", "📄 Reporte Word"])
+        
+        with tab1:
+            st.metric("Tiempo Total Equipo", fmt_val(avs['tot_tiempo'], 'tiempo'))
+            sel = st.selectbox("Seleccionar Atleta:", [d['name'] for d in datos])
+            atleta = next((d for d in datos if d['name'] == sel), None)
+            if atleta:
+                m = atleta['metrics']
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Natación", fmt_val(m['nat_tiempo']['val'], 'tiempo'))
+                c2.metric("Ciclismo", fmt_val(m['bike_tiempo']['val'], 'tiempo'))
+                c3.metric("Trote", fmt_val(m['run_tiempo']['val'], 'tiempo'))
+
+        with tab2:
+            st.write("### Exportación a Word")
+            st.write("Genera el reporte V30 con todas las tablas detalladas.")
+            if st.button("Descargar Reporte Completo", type="primary"):
+                doc_io = generar_word_v30(datos, avs, avh)
+                st.download_button("📥 Descargar .DOCX", doc_io, "Reporte_Athlos.docx")

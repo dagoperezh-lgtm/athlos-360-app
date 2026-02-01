@@ -6,23 +6,26 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-# --- 1. CONFIGURACIÓN E INICIO ---
-st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
-st.title("🦅 Athlos 360")
-st.write("✅ Sistema Iniciado...") # Chivato 1: Si ves esto, la app vive.
-
-# --- 2. TUS ENLACES (Corregidos a formato RAW directo) ---
+# --- TUS ENLACES CONFIGURADOS ---
 URL_HISTORICO = "https://raw.githubusercontent.com/dagoperezh-lgtm/athlos-360-app/main/00%20Estadi%CC%81sticas%20TYM_ACTUALIZADO_V21%20(1).xlsx"
 URL_SEMANA    = "https://raw.githubusercontent.com/dagoperezh-lgtm/athlos-360-app/main/06%20Sem%20(tst).xlsx"
 
-# --- 3. FUNCIONES DE CARGA Y PROCESAMIENTO ---
+st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
+
+st.markdown("""
+    <style>
+    .main {background-color: #f8f9fa;}
+    .stButton>button {width: 100%; border-radius: 8px; font-weight: bold; background-color: #003366; color: white;}
+    h1, h2, h3 {color: #003366;}
+    </style>
+""", unsafe_allow_html=True)
+
+# --- FUNCIONES BASE (MOTOR V25 RECUPERADO) ---
 @st.cache_data(ttl=600)
 def cargar_datos_github(url_hist, url_sem):
     try:
         df_sem = pd.read_excel(url_sem, engine='openpyxl')
-        # Limpiar nombres de columnas
         df_sem.columns = [str(c).strip() for c in df_sem.columns]
-        
         xls = pd.ExcelFile(url_hist, engine='openpyxl')
         dfs_hist = {s: pd.read_excel(xls, sheet_name=s) for s in xls.sheet_names}
         return df_sem, dfs_hist, None
@@ -55,18 +58,22 @@ def fmt_val(val, tipo):
 
 def procesar_logica(df_sem, dfs_hist):
     try:
+        # MÉTRICAS COMPLETAS V25
         METRICAS = {
             'tot_tiempo': {'col': 'Tiempo Total (hh:mm:ss)', 'hist': 'Total', 't': 'tiempo', 'lbl': 'Tiempo Total', 'u': ''},
             'tot_dist': {'col': 'Distancia Total (km)', 'hist': 'Distancia Total', 't': 'float', 'lbl': 'Distancia Total', 'u': 'km'},
             'tot_elev': {'col': 'Altimetría Total (m)', 'hist': 'Altimetría', 't': 'float', 'lbl': 'Desnivel Total', 'u': 'm'},
             'cv': {'col': 'CV (Equilibrio)', 'hist': 'CV', 't': 'float', 'lbl': 'Consistencia (CV)', 'u': ''},
+            
             'nat_tiempo': {'col': 'Nat: Tiempo (hh:mm:ss)', 'hist': 'Natación', 't': 'tiempo', 'lbl': 'Tiempo', 'u': ''},
             'nat_dist': {'col': 'Nat: Distancia (km)', 'hist': 'Nat Distancia', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
             'nat_ritmo': {'col': 'Nat: Ritmo (min/100m)', 'hist': 'Nat Ritmo', 't': 'tiempo', 'lbl': 'Ritmo', 'u': ' /100m'},
+            
             'bike_tiempo': {'col': 'Ciclismo: Tiempo (hh:mm:ss)', 'hist': 'Ciclismo', 't': 'tiempo', 'lbl': 'Tiempo', 'u': ''},
             'bike_dist': {'col': 'Ciclismo: Distancia (km)', 'hist': 'Ciclismo Distancia', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
             'bike_elev': {'col': 'Ciclismo: KOM/Desnivel (m)', 'hist': 'Ciclismo Desnivel', 't': 'float', 'lbl': 'Desnivel', 'u': 'm'},
             'bike_vel': {'col': 'Ciclismo: Vel. Media (km/h)', 'hist': 'Ciclismo Velocidad', 't': 'float', 'lbl': 'Vel. Media', 'u': ' km/h'},
+            
             'run_tiempo': {'col': 'Trote: Tiempo (hh:mm:ss)', 'hist': 'Trote', 't': 'tiempo', 'lbl': 'Tiempo', 'u': ''},
             'run_dist': {'col': 'Trote: Distancia (km)', 'hist': 'Trote Distancia', 't': 'float', 'lbl': 'Distancia', 'u': 'km'},
             'run_elev': {'col': 'Trote: KOM/Desnivel (m)', 'hist': 'Trote Desnivel', 't': 'float', 'lbl': 'Desnivel', 'u': 'm'},
@@ -127,10 +134,11 @@ def procesar_logica(df_sem, dfs_hist):
                 lista_final.append({'name': nom, 'metrics': metrics})
             
         return lista_final, avgs_club, avgs_hist_global, None
+
     except Exception as e:
         return [], {}, {}, str(e)
 
-# --- 4. GENERACIÓN WORD ---
+# --- GENERADOR WORD (LÓGICA DETALLADA RECUPERADA) ---
 def agregar_tabla_deporte(doc, m, titulo, keys_dep):
     act = False
     for k in keys_dep:
@@ -155,21 +163,43 @@ def agregar_tabla_deporte(doc, m, titulo, keys_dep):
         row[0].text = meta['lbl']
         row[1].text = f"{fmt_val(val, meta['t'])}{meta['u']}"
         
+        # Vs Equipo (Cálculo Detallado)
+        pe = row[2].paragraphs[0]
         if avg:
-            if meta['t']=='tiempo': ok = (val-avg).total_seconds()>=0
-            else: ok = (val-avg)>=0
+            if meta['t']=='tiempo': 
+                diff = val - avg
+                ok = diff.total_seconds() >= 0
+                txt = f"{'+' if ok else '-'}{fmt_val(abs(diff), 'tiempo')}"
+            else:
+                diff = val - avg
+                ok = diff >= 0
+                txt = f"{'+' if ok else '-'}{fmt_val(abs(diff), 'float')}"
+            
             if 'Ritmo' in meta['lbl']: ok = not ok
-            row[2].text = "+" if ok else "-"
-        else: row[2].text = "-"
+            run = pe.add_run(txt)
+            run.font.color.rgb = RGBColor(0, 100, 0) if ok else RGBColor(180, 0, 0)
+        else: pe.text = "-"
+
+        # Vs Histórico (Cálculo Detallado)
+        ph = row[3].paragraphs[0]
         if hval:
-            if meta['t']=='tiempo': ok = (val-hval).total_seconds()>=0
-            else: ok = (val-hval)>=0
+            if meta['t']=='tiempo': 
+                diff = val - hval
+                ok = diff.total_seconds() >= 0
+                txt = f"{'+' if ok else '-'}{fmt_val(abs(diff), 'tiempo')}"
+            else:
+                diff = val - hval
+                ok = diff >= 0
+                txt = f"{'+' if ok else '-'}{fmt_val(abs(diff), 'float')}"
+            
             if 'Ritmo' in meta['lbl']: ok = not ok
-            row[3].text = "+" if ok else "-"
-        else: row[3].text = "New"
+            run = ph.add_run(txt)
+            run.font.color.rgb = RGBColor(0, 100, 0) if ok else RGBColor(180, 0, 0)
+        else: ph.add_run("New").font.color.rgb = RGBColor(0, 0, 128)
+        
     doc.add_paragraph("")
 
-def generar_word_v30(data, team_avg, hist_avg):
+def generar_word_v31(data, team_avg, hist_avg):
     doc = Document()
     style = doc.styles['Normal']; style.font.name = 'Calibri'; style.font.size = Pt(10.5)
     
@@ -209,42 +239,59 @@ def generar_word_v30(data, team_avg, hist_avg):
     doc.save(bio); bio.seek(0)
     return bio
 
-# --- 5. EJECUCIÓN PRINCIPAL ---
-st.caption("Panel de Control Automático - V30 (Stable)")
+# --- INTERFAZ ---
+st.title("🦅 Athlos 360")
+st.caption("Panel de Control - V31 Full Suite")
 
-if st.button("🔄 Forzar Actualización de Datos"):
+if st.button("🔄 Refrescar Datos"):
     st.cache_data.clear()
     st.experimental_rerun()
 
-with st.spinner("Conectando con GitHub..."):
+with st.spinner("Cargando desde GitHub..."):
     df_s, dfs_h, err = cargar_datos_github(URL_HISTORICO, URL_SEMANA)
 
 if err:
-    st.error(f"❌ Error de Conexión: {err}")
-    st.write("Verifica que los archivos existan en GitHub y el repositorio sea 'Public'.")
+    st.error(f"Error: {err}")
 else:
-    st.success("✅ Datos cargados correctamente.")
     datos, avs, avh, err_proc = procesar_logica(df_s, dfs_h)
     
     if err_proc:
-        st.error(f"Error procesando datos: {err_proc}")
+        st.error(f"Error lógico: {err_proc}")
     else:
-        tab1, tab2 = st.tabs(["📊 Dashboard", "📄 Reporte Word"])
+        tab1, tab2 = st.tabs(["📊 Dashboard Detallado", "📄 Reporte Ejecutivo"])
         
         with tab1:
             st.metric("Tiempo Total Equipo", fmt_val(avs['tot_tiempo'], 'tiempo'))
             sel = st.selectbox("Seleccionar Atleta:", [d['name'] for d in datos])
             atleta = next((d for d in datos if d['name'] == sel), None)
+            
             if atleta:
                 m = atleta['metrics']
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Natación", fmt_val(m['nat_tiempo']['val'], 'tiempo'))
-                c2.metric("Ciclismo", fmt_val(m['bike_tiempo']['val'], 'tiempo'))
-                c3.metric("Trote", fmt_val(m['run_tiempo']['val'], 'tiempo'))
+                # AQUÍ MOSTRAMOS TODO EN PANTALLA TAMBIÉN
+                st.markdown(f"### Detalles de {atleta['name']}")
+                
+                with st.expander("🏊 NATACIÓN", expanded=True):
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Tiempo", fmt_val(m['nat_tiempo']['val'], 'tiempo'))
+                    c2.metric("Distancia", fmt_val(m['nat_dist']['val'], 'float') + " km")
+                    c3.metric("Ritmo", fmt_val(m['nat_ritmo']['val'], 'tiempo') + "/100m")
+
+                with st.expander("🚴 CICLISMO", expanded=True):
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Tiempo", fmt_val(m['bike_tiempo']['val'], 'tiempo'))
+                    c2.metric("Distancia", fmt_val(m['bike_dist']['val'], 'float') + " km")
+                    c3.metric("Desnivel", fmt_val(m['bike_elev']['val'], 'float') + " m")
+                    c4.metric("Velocidad", fmt_val(m['bike_vel']['val'], 'float') + " km/h")
+
+                with st.expander("🏃 TROTE", expanded=True):
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Tiempo", fmt_val(m['run_tiempo']['val'], 'tiempo'))
+                    c2.metric("Distancia", fmt_val(m['run_dist']['val'], 'float') + " km")
+                    c3.metric("Desnivel", fmt_val(m['run_elev']['val'], 'float') + " m")
+                    c4.metric("Ritmo", fmt_val(m['run_ritmo']['val'], 'tiempo') + "/km")
 
         with tab2:
-            st.write("### Exportación a Word")
-            st.write("Genera el reporte V30 con todas las tablas detalladas.")
-            if st.button("Descargar Reporte Completo", type="primary"):
-                doc_io = generar_word_v30(datos, avs, avh)
-                st.download_button("📥 Descargar .DOCX", doc_io, "Reporte_Athlos.docx")
+            st.success("✅ Datos procesados. Listo para generar informe detallado.")
+            if st.button("Descargar Reporte Word (V31)", type="primary"):
+                doc_io = generar_word_v31(datos, avs, avh)
+                st.download_button("📥 Descargar .DOCX", doc_io, "Reporte_Athlos_V31.docx")

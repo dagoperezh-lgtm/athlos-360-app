@@ -7,7 +7,7 @@ from docx.shared import Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # ==============================================================================
-# 👇👇👇 CONFIGURACIÓN DE ENLACES (PEGA TUS LINKS AQUÍ) 👇👇👇
+# 👇👇👇 TUS ENLACES YA CONFIGURADOS 👇👇👇
 # ==============================================================================
 URL_HISTORICO = "https://github.com/dagoperezh-lgtm/athlos-360-app/raw/refs/heads/main/00%20Estadi%CC%81sticas%20TYM_ACTUALIZADO_V21%20(1).xlsx"
 URL_SEMANA    = "https://github.com/dagoperezh-lgtm/athlos-360-app/raw/refs/heads/main/06%20Sem%20(tst).xlsx"
@@ -23,7 +23,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNCIONES BASE ---
+# --- 1. FUNCIONES BASE ---
 @st.cache_data(ttl=600)
 def cargar_datos_github(url_hist, url_sem):
     try:
@@ -61,7 +61,6 @@ def fmt_val(val, tipo):
 
 def procesar_logica(df_sem, dfs_hist):
     try:
-        # LISTA COMPLETA DE MÉTRICAS (RESTAURO V26)
         METRICAS = {
             'tot_tiempo': {'col': 'Tiempo Total (hh:mm:ss)', 'hist': 'Total', 't': 'tiempo', 'lbl': 'Tiempo Total', 'u': ''},
             'tot_dist': {'col': 'Distancia Total (km)', 'hist': 'Distancia Total', 't': 'float', 'lbl': 'Distancia Total', 'u': 'km'},
@@ -83,7 +82,6 @@ def procesar_logica(df_sem, dfs_hist):
             'run_ritmo': {'col': 'Trote: Ritmo (min/km)', 'hist': 'Trote Ritmo', 't': 'tiempo', 'lbl': 'Ritmo', 'u': ' /km'}
         }
 
-        # 1. Promedios Club
         avgs_club = {}
         for k, m in METRICAS.items():
             if m['col'] in df_sem.columns:
@@ -92,7 +90,6 @@ def procesar_logica(df_sem, dfs_hist):
                 avgs_club[k] = v.mean() if not v.empty else (pd.Timedelta(0) if m['t']=='tiempo' else 0)
             else: avgs_club[k] = None
 
-        # 2. Históricos
         avgs_hist_global = {}
         for k, m in METRICAS.items():
             target = next((s for s in dfs_hist if m['hist'].lower() in s.lower()), None)
@@ -108,7 +105,6 @@ def procesar_logica(df_sem, dfs_hist):
                 else: avgs_hist_global[k] = None
             else: avgs_hist_global[k] = None
 
-        # 3. Atletas
         lista_final = []
         c_nom = next((c for c in df_sem.columns if c in ['Deportista', 'Nombre']), None)
         
@@ -144,7 +140,48 @@ def procesar_logica(df_sem, dfs_hist):
     except Exception as e:
         return [], {}, {}, str(e)
 
-def generar_word_v28(data, team_avg, hist_avg):
+# --- 2. GENERACIÓN WORD (Helper Externo para evitar errores de indentación) ---
+def agregar_tabla_deporte(doc, m, titulo, keys_dep):
+    # Lógica separada para limpieza
+    act = False
+    for k in keys_dep:
+        if m[k]['meta']['t']=='tiempo' and m[k]['val'].total_seconds()>0: act=True
+        elif m[k]['meta']['t']!='tiempo' and m[k]['val']>0: act=True
+    
+    p_tit = doc.add_paragraph()
+    tr = p_tit.add_run(titulo); tr.bold = True; tr.font.color.rgb = RGBColor(0, 51, 102)
+    if not act: 
+        p_tit.add_run(" (Sin actividad)").font.color.rgb = RGBColor(150,150,150)
+        return
+
+    tb = doc.add_table(rows=1, cols=4); tb.autofit = True
+    hd = tb.rows[0].cells
+    hd[0].text="Métrica"; hd[1].text="Dato"; hd[2].text="Vs Eq"; hd[3].text="Vs Hist"
+    
+    for k in keys_dep:
+        item = m[k]; meta = item['meta']; val = item['val']; avg = item['avg']; hval = item['hist']
+        if (meta['t']=='tiempo' and val.total_seconds()==0) or (meta['t']!='tiempo' and val==0): continue
+        
+        row = tb.add_row().cells
+        row[0].text = meta['lbl']
+        row[1].text = f"{fmt_val(val, meta['t'])}{meta['u']}"
+        
+        if avg:
+            if meta['t']=='tiempo': ok = (val-avg).total_seconds()>=0
+            else: ok = (val-avg)>=0
+            if 'Ritmo' in meta['lbl']: ok = not ok
+            row[2].text = "+" if ok else "-"
+        else: row[2].text = "-"
+        
+        if hval:
+            if meta['t']=='tiempo': ok = (val-hval).total_seconds()>=0
+            else: ok = (val-hval)>=0
+            if 'Ritmo' in meta['lbl']: ok = not ok
+            row[3].text = "+" if ok else "-"
+        else: row[3].text = "New"
+    doc.add_paragraph("")
+
+def generar_word_v29(data, team_avg, hist_avg):
     doc = Document()
     style = doc.styles['Normal']; style.font.name = 'Calibri'; style.font.size = Pt(10.5)
     
@@ -158,13 +195,3 @@ def generar_word_v28(data, team_avg, hist_avg):
     keys = ['tot_tiempo', 'tot_dist', 'tot_elev', 'cv']
     for k in keys:
         if not data: break
-        m = data[0]['metrics'][k]['meta']
-        r = t.add_row().cells
-        r[0].text = m['lbl']
-        r[1].text = f"{fmt_val(team_avg.get(k), m['t'])} {m['u']}"
-        r[2].text = f"{fmt_val(hist_avg.get(k), m['t'])} {m['u']}"
-    doc.add_page_break()
-
-    for d in data:
-        doc.add_heading(f"🦅 {d['name']}", level=1).alignment = WD_ALIGN_PARAGRAPH.CENTER
-        doc.

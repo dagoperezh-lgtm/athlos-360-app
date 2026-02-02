@@ -1,256 +1,239 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - APP V8.0 (REPLICA EXACTA DEL REPORTE V25)
+# 🦅 ATHLOS 360 - REPORTE DE RENDIMIENTO (MODELO V25)
 # =============================================================================
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import os
 
-# --- 1. CONFIGURACIÓN ---
+# --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Athlos 360 Report", page_icon="🦅", layout="wide", initial_sidebar_state="collapsed")
 
-# Estilos para imitar el reporte de Word
+# Estilos CSS (Idénticos al DOCX)
 st.markdown("""
 <style>
-    .big-metric { font-size: 26px !important; font-weight: bold; color: #1E1E1E; }
-    .sub-metric { font-size: 14px !important; color: #666; }
-    .card { background-color: #f9f9f9; padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; margin-bottom: 10px; }
-    .header-discipline { background-color: #e0e0e0; padding: 5px 10px; border-radius: 5px; font-weight: bold; margin-top: 20px; }
+    .report-title { font-size: 28px; font-weight: bold; color: #111; margin-bottom: 5px; }
+    .report-subtitle { font-size: 16px; color: #555; margin-bottom: 20px; border-bottom: 2px solid #FF4B4B; padding-bottom: 10px; }
+    .discipline-header { 
+        background-color: #f0f2f6; 
+        padding: 8px 15px; 
+        border-radius: 5px; 
+        font-weight: bold; 
+        color: #333; 
+        margin-top: 20px; 
+        margin-bottom: 10px;
+    }
+    .metric-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .metric-label { font-weight: bold; color: #444; }
+    .metric-value { font-size: 18px; font-weight: bold; }
+    .metric-comp { font-size: 13px; margin-left: 10px; }
+    .pos { color: green; }
+    .neg { color: red; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE DATOS ---
+# --- CARGA DE DATOS ---
 ARCHIVO = "06 Sem (tst).xlsx"
 
 @st.cache_data(ttl=60)
-def get_data(hoja_keyword):
-    """Busca y carga la hoja correcta (ej: busca 'Ritmo' encuentra 'Nat Ritmo')"""
+def cargar_hoja(nombre_clave):
     if not os.path.exists(ARCHIVO): return None
     try:
         xls = pd.ExcelFile(ARCHIVO, engine='openpyxl')
-        # Buscar coincidencia flexible
-        target = next((h for h in xls.sheet_names if hoja_keyword.lower() in h.lower()), None)
-        if target:
-            df = pd.read_excel(xls, sheet_name=target)
+        hoja = next((h for h in xls.sheet_names if nombre_clave.lower() in h.lower()), None)
+        if hoja:
+            df = pd.read_excel(xls, sheet_name=hoja)
             df.columns = [str(c).strip() for c in df.columns]
-            # Normalizar nombre
-            c_nom = next((c for c in df.columns if c.lower() in ['nombre','deportista','atleta']), None)
-            if c_nom: df.rename(columns={c_nom: 'Nombre'}, inplace=True)
+            col_nom = next((c for c in df.columns if c.lower() in ['nombre','deportista','atleta']), None)
+            if col_nom: df.rename(columns={col_nom: 'Nombre'}, inplace=True)
             return df
     except: pass
     return None
 
-# --- 3. FORMATTERS (TRADUCTORES DE NÚMEROS RAROS) ---
-def fmt_tiempo(val):
-    """0.52 -> 12h 30m"""
+# --- FORMATTERS (Los traductores de números) ---
+def fmt_time(val): # 0.5 -> 12h 00m
     if pd.isna(val) or val == 0: return "-"
     try:
-        horas = float(val) * 24
-        h = int(horas)
-        m = int((horas - h) * 60)
+        h = int(val * 24)
+        m = int((val * 24 * 60) % 60)
         return f"{h}h {m}m"
     except: return "-"
 
-def fmt_ritmo(val, tipo="run"):
-    """0.0034 -> 5:00 min/km"""
+def fmt_pace(val, sport="run"): # 0.003 -> 5:00 min/km
     if pd.isna(val) or val == 0: return "-"
     try:
-        # Excel tiempo es fracción de día. 
-        # Ritmo = minutos por km (o 100m)
-        total_min = float(val) * 24 * 60
+        total_min = val * 24 * 60
         m = int(total_min)
         s = int((total_min - m) * 60)
-        suffix = "min/100m" if tipo == "swim" else "min/km"
-        return f"{m}:{s:02d} {suffix}"
+        u = "min/100m" if sport == "swim" else "min/km"
+        return f"{m}:{s:02d} {u}"
     except: return "-"
 
-def fmt_num(val, decimales=1):
-    try: return f"{float(val):.{decimales}f}"
-    except: return "-"
+def fmt_diff_time(val): # +0.1 -> +2h 24m
+    if val == 0: return "-"
+    signo = "+" if val > 0 else "-"
+    val = abs(val)
+    h = int(val * 24)
+    m = int((val * 24 * 60) % 60)
+    return f"{signo}{h}h {m}m"
 
-# --- 4. CARGA DE TODOS LOS DATOS (EL CEREBRO DE LA V25) ---
-# Aquí cargamos lo que faltaba: Ritmos, Desnivel, CV
+# --- DATOS COMPLETOS ---
+# Cargamos TODAS las hojas necesarias para el reporte V25
 dfs = {
-    "Dist": get_data("Distancia Total"),
-    "Time": get_data("Tiempo Total"),
-    "Alt":  get_data("Altimetría Total"), # ¡Recuperado!
-    "CV":   get_data("CV"),               # ¡Recuperado!
+    'Dist': cargar_hoja("Distancia Total"),
+    'Time': cargar_hoja("Tiempo Total"),
+    'Alt': cargar_hoja("Altimetría Total"),
+    'CV': cargar_hoja("CV"),
     
-    # Natación
-    "N_Dist": get_data("Nat Distancia"),
-    "N_Time": get_data("Nat: Tiempo"),    # A veces es Nat Tiempo o Nat: Tiempo
-    "N_Pace": get_data("Nat Ritmo"),      # ¡Recuperado!
+    'N_Dist': cargar_hoja("Nat Distancia"),
+    'N_Time': cargar_hoja("Natación"), # A veces se llama Natación a secas
+    'N_Pace': cargar_hoja("Nat Ritmo"),
     
-    # Ciclismo
-    "B_Dist": get_data("Ciclismo Distancia"),
-    "B_Time": get_data("Ciclismo Tiempo"),
-    "B_Elev": get_data("Ciclismo Desnivel"), # ¡Recuperado!
+    'B_Dist': cargar_hoja("Ciclismo Distancia"),
+    'B_Time': cargar_hoja("Ciclismo"),
+    'B_Elev': cargar_hoja("Ciclismo Desnivel"),
     
-    # Trote
-    "R_Dist": get_data("Trote Distancia"),
-    "R_Time": get_data("Trote Tiempo"),
-    "R_Pace": get_data("Trote Ritmo"),       # ¡Recuperado!
+    'R_Dist': cargar_hoja("Trote Distancia"),
+    'R_Time': cargar_hoja("Trote"),
+    'R_Pace': cargar_hoja("Trote Ritmo")
 }
+# Fallback nombres
+if dfs['N_Time'] is None: dfs['N_Time'] = cargar_hoja("Nat: Tiempo")
+if dfs['B_Time'] is None: dfs['B_Time'] = cargar_hoja("Ciclismo: Tiempo")
+if dfs['R_Time'] is None: dfs['R_Time'] = cargar_hoja("Trote: Tiempo")
 
-# Fix para Nat Tiempo si falla el nombre exacto
-if dfs["N_Time"] is None: dfs["N_Time"] = get_data("Natación") 
-if dfs["B_Time"] is None: dfs["B_Time"] = get_data("Ciclismo")
-if dfs["R_Time"] is None: dfs["R_Time"] = get_data("Trote")
+# --- PORTADA ---
+if 'ingreso' not in st.session_state: st.session_state['ingreso'] = False
 
-# --- 5. LÓGICA DE SELECCIÓN ---
-if "club_ok" not in st.session_state: st.session_state["club_ok"] = False
-
-if not st.session_state["club_ok"]:
-    # --- PORTADA DE RECEPCIÓN ---
+if not st.session_state['ingreso']:
     c1, c2, c3 = st.columns([1,2,1])
     with c2:
-        if os.path.exists("logo_athlos.png"): st.image("logo_athlos.png", use_container_width=True)
-        st.title("🦅 ATHLOS 360")
-        st.markdown("---")
-        club = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
+        if os.path.exists("logo_athlos.png"): st.image("logo_athlos.png")
+        st.markdown("<h1 style='text-align:center'>ATHLOS 360</h1>", unsafe_allow_html=True)
+        club = st.selectbox("Club", ["Seleccionar...", "TYM Triathlon"])
         if club == "TYM Triathlon":
-            if st.button("INGRESAR"):
-                st.session_state["club_ok"] = True
-                st.rerun()
+            if st.button("VER REPORTE"): st.session_state['ingreso'] = True; st.rerun()
 else:
-    # --- DASHBOARD PRINCIPAL ---
+    # --- REPORTE ---
     with st.sidebar:
         if os.path.exists("logo_athlos.png"): st.image("logo_athlos.png")
-        if st.button("🏠 Salir"): 
-            st.session_state["club_ok"] = False
-            st.rerun()
-        
+        if st.button("🏠 Salir"): st.session_state['ingreso'] = False; st.rerun()
         st.markdown("---")
-        
-        # Selector Atleta
-        base = dfs["Dist"]
-        if base is None: st.error("Sin datos base"); st.stop()
-        
-        nombres = sorted([str(x) for x in base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
-        atleta = st.selectbox("Selecciona Atleta:", nombres)
-
-    # --- PANTALLA REPORTE V25 ---
-    st.title(f"👤 {atleta}")
+        base = dfs['Dist']
+        if base is not None:
+            nombres = sorted([str(x) for x in base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
+            atleta = st.selectbox("Selecciona Atleta", nombres)
     
-    # Identificar Semanas
-    cols_sem = [c for c in base.columns if c.startswith("Sem")]
-    if not cols_sem: st.error("No hay historia"); st.stop()
-    ultima = cols_sem[-1]
-    st.markdown(f"**Reporte Semanal: {ultima}**")
-    st.markdown("---")
+    if base is not None:
+        # Semana Actual
+        cols_sem = [c for c in base.columns if c.startswith("Sem")]
+        ultima = cols_sem[-1] if cols_sem else "N/A"
+        
+        # --- FUNCIONES DE CÁLCULO V25 ---
+        def get_data_row(key, col):
+            if dfs[key] is None: return 0
+            r = dfs[key][dfs[key]['Nombre'] == atleta]
+            if r.empty: return 0
+            val = pd.to_numeric(r[col].values[0], errors='coerce')
+            return val if pd.notnull(val) else 0
 
-    # FUNCIÓN AUXILIAR PARA EXTRAER DATOS V25
-    def get_val(df_dict, key, col):
-        if df_dict[key] is None: return 0
-        row = df_dict[key][df_dict[key]['Nombre'] == atleta]
-        if row.empty: return 0
-        return pd.to_numeric(row[col].values[0], errors='coerce') or 0
+        def get_avgs(key):
+            if dfs[key] is None: return 0, 0
+            # Promedio Equipo (Semana Actual)
+            avg_team = pd.to_numeric(dfs[key][ultima], errors='coerce').mean()
+            # Promedio Histórico Personal
+            r = dfs[key][dfs[key]['Nombre'] == atleta]
+            if r.empty: return avg_team, 0
+            hist_vals = [pd.to_numeric(r[c].values[0], errors='coerce') or 0 for c in cols_sem]
+            avg_hist = sum(hist_vals) / len(hist_vals) if hist_vals else 0
+            return avg_team, avg_hist
 
-    def get_avg_team(df_dict, key, col):
-        if df_dict[key] is None: return 0
-        return pd.to_numeric(df_dict[key][col], errors='coerce').mean()
+        # --- CABECERA REPORTE ---
+        st.markdown(f"<div class='report-title'>🦅 REPORTE 360°: {atleta}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='report-subtitle'>Reporte Semanal: {ultima}</div>", unsafe_allow_html=True)
 
-    def get_avg_hist(df_dict, key):
-        if df_dict[key] is None: return 0
-        row = df_dict[key][df_dict[key]['Nombre'] == atleta]
-        if row.empty: return 0
-        # Promedio de todas las semanas históricas
-        vals = [pd.to_numeric(row[c].values[0], errors='coerce') or 0 for c in cols_sem]
-        return sum(vals)/len(vals) if vals else 0
-
-    # --- SECCIÓN 1: RESUMEN GLOBAL (Encabezado V25) ---
-    val_t = get_val(dfs, "Time", ultima)
-    val_d = get_val(dfs, "Dist", ultima)
-    val_a = get_val(dfs, "Alt", ultima)
-    
-    # Comparativas Globales (Distancia)
-    avg_team_d = get_avg_team(dfs, "Dist", ultima)
-    avg_hist_d = get_avg_hist(dfs, "Dist")
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("⏱️ Tiempo Total", fmt_tiempo(val_t))
-    col2.metric("📏 Distancia", f"{val_d:.1f} km", delta=f"{val_d - avg_team_d:.1f} vs Equipo")
-    col3.metric("⛰️ Altimetría", f"{val_a:.0f} m", delta=f"{val_d - avg_hist_d:.1f} vs Histórico (Dist)")
-    
-    st.markdown("---")
-
-    # --- SECCIÓN 2: DESGLOSE POR DISCIPLINA (TABLAS V25) ---
-    
-    # Función para crear la "Ficha Técnica" por deporte
-    def ficha_tecnica(titulo, icono, keys, tipo_ritmo=None):
-        st.markdown(f"### {icono} {titulo}")
+        # DATOS GLOBALES
+        v_time = get_data_row('Time', ultima)
+        v_dist = get_data_row('Dist', ultima)
+        v_alt = get_data_row('Alt', ultima)
         
-        # Extraer valores actuales
-        t = get_val(dfs, keys['t'], ultima) # Tiempo
-        d = get_val(dfs, keys['d'], ultima) # Distancia
+        # Comparativas Globales
+        avg_tm_t, avg_hi_t = get_avgs('Time')
+        diff_tm = v_time - avg_tm_t
+        diff_hi = v_time - avg_hi_t
         
-        # Ritmo o Altitud
-        extra_val = 0
-        extra_lbl = ""
-        extra_fmt = ""
+        # Tarjetas Principales
+        k1, k2, k3 = st.columns(3)
+        k1.metric("⏱️ Tiempo Total", fmt_time(v_time))
+        k2.metric("📏 Distancia", f"{v_dist:.1f} km")
+        k3.metric("⛰️ Altimetría", f"{v_alt:.0f} m")
         
-        if 'p' in keys: # Pace
-            extra_val = get_val(dfs, keys['p'], ultima)
-            extra_lbl = "Ritmo"
-            extra_fmt = lambda x: fmt_ritmo(x, tipo_ritmo)
-        elif 'e' in keys: # Elevation (Cycling)
-            extra_val = get_val(dfs, keys['e'], ultima)
-            extra_lbl = "Desnivel"
-            extra_fmt = lambda x: f"{x:.0f} m"
-
-        # Comparativas (Usamos Distancia como proxy de carga)
-        avg_team = get_avg_team(dfs, keys['d'], ultima)
-        avg_hist = get_avg_hist(dfs, keys['d'])
+        # Línea de Comparativa V25
+        cls_tm = "pos" if diff_tm >= 0 else "neg"
+        cls_hi = "pos" if diff_hi >= 0 else "neg"
         
-        # Layout de Tarjeta
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Tiempo", fmt_tiempo(t))
-        c2.metric("Distancia", f"{d:.1f} km")
-        if extra_lbl:
-            c3.metric(extra_lbl, extra_fmt(extra_val))
-        
-        # Comparativa Texto
-        diff_team = d - avg_team
-        diff_hist = d - avg_hist
-        
-        color_team = "green" if diff_team >= 0 else "red"
-        color_hist = "blue" if diff_hist >= 0 else "orange"
-        
-        c4.markdown(f"""
-        <div style="font-size:12px">
-        👥 <b>Vs Equipo:</b> <span style='color:{color_team}'>{diff_team:+.1f} km</span><br>
-        📅 <b>Vs Histórico:</b> <span style='color:{color_hist}'>{diff_hist:+.1f} km</span>
+        st.markdown(f"""
+        <div style='background-color:#f9f9f9; padding:10px; border-radius:5px; margin-bottom:20px'>
+            <b>👥 Vs Equipo:</b> <span class='{cls_tm}'>{fmt_diff_time(diff_tm)}</span> &nbsp;|&nbsp;
+            <b>📅 Vs Promedio Anual:</b> <span class='{cls_hi}'>{fmt_diff_time(diff_hi)}</span>
         </div>
         """, unsafe_allow_html=True)
+
+        # --- SECCIONES POR DISCIPLINA ---
         
-        # Mini Gráfico Histórico
-        row = dfs[keys['d']][dfs[keys['d']]['Nombre'] == atleta]
-        if not row.empty:
-            y = [pd.to_numeric(row[c].values[0], errors='coerce') or 0 for c in cols_sem]
-            fig = px.area(x=cols_sem, y=y, height=150)
-            fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), showlegend=False, xaxis_visible=False, yaxis_visible=False)
-            st.plotly_chart(fig, use_container_width=True)
+        def render_section(title, icon, keys, is_swim=False):
+            st.markdown(f"<div class='discipline-header'>{icon} {title}</div>", unsafe_allow_html=True)
             
+            # Datos
+            t = get_data_row(keys['t'], ultima)
+            d = get_data_row(keys['d'], ultima)
+            
+            # Extra (Ritmo o Desnivel)
+            if 'p' in keys:
+                e_val = get_data_row(keys['p'], ultima)
+                e_lbl = "Ritmo"
+                e_fmt = fmt_pace(e_val, "swim" if is_swim else "run")
+            elif 'e' in keys:
+                e_val = get_data_row(keys['e'], ultima)
+                e_lbl = "Desnivel"
+                e_fmt = f"{e_val:.0f} m"
+                
+            # Comparativas (Usando Tiempo como base del esfuerzo)
+            av_tm, av_hi = get_avgs(keys['t'])
+            d_tm = t - av_tm
+            d_hi = t - av_hi
+            
+            c_tm = "green" if d_tm >= 0 else "red"
+            c_hi = "blue" if d_hi >= 0 else "orange"
+
+            # Tabla HTML manual para control total
+            st.markdown(f"""
+            <table style="width:100%">
+                <tr>
+                    <td style="width:30%"><b>Tiempo:</b> {fmt_time(t)}</td>
+                    <td style="width:30%"><b>Distancia:</b> {d:.1f} km</td>
+                    <td style="width:40%"><b>{e_lbl}:</b> {e_fmt}</td>
+                </tr>
+                <tr>
+                    <td colspan="3" style="font-size:13px; color:#666; padding-top:5px">
+                        Vs Equipo: <span style='color:{c_tm}'><b>{fmt_diff_time(d_tm)}</b></span> &nbsp; 
+                        Vs Histórico: <span style='color:{c_hi}'><b>{fmt_diff_time(d_hi)}</b></span>
+                    </td>
+                </tr>
+            </table>
+            """, unsafe_allow_html=True)
+
+        render_section("NATACIÓN", "🏊", {'t':'N_Time', 'd':'N_Dist', 'p':'N_Pace'}, True)
+        render_section("CICLISMO", "🚴", {'t':'B_Time', 'd':'B_Dist', 'e':'B_Elev'})
+        render_section("TROTE", "🏃", {'t':'R_Time', 'd':'R_Dist', 'p':'R_Pace'})
+
+        # --- CONSISTENCIA ---
         st.markdown("---")
-
-    # 1. NATACIÓN
-    ficha_tecnica("NATACIÓN", "🏊", {'t': 'N_Time', 'd': 'N_Dist', 'p': 'N_Pace'}, "swim")
-    
-    # 2. CICLISMO (Aquí mostramos Desnivel en vez de Ritmo)
-    ficha_tecnica("CICLISMO", "🚴", {'t': 'B_Time', 'd': 'B_Dist', 'e': 'B_Elev'})
-    
-    # 3. TROTE
-    ficha_tecnica("TROTE", "🏃", {'t': 'R_Time', 'd': 'R_Dist', 'p': 'R_Pace'}, "run")
-
-    # --- SECCIÓN 3: CONSISTENCIA (CV) ---
-    val_cv = get_val(dfs, "CV", ultima)
-    avg_cv = get_avg_team(dfs, "CV", ultima)
-    
-    st.subheader("⚖️ CONSISTENCIA (CV)")
-    col_cv, col_insight = st.columns([1, 2])
-    
-    with col_cv:
-        st.metric("CV Actual", f"{val_cv:.2f}", delta=f"{val_cv - avg_cv:.2f} vs Promedio")
-    
-    with col_insight:
-        st.info("💡 **Insight:** La consistencia es la clave del rendimiento. Un CV cercano a 1.0 indica un equilibrio óptimo entre disciplinas.")
+        v_cv = get_data_row('CV', ultima)
+        avg_cv_team, _ = get_avgs('CV')
+        diff_cv = v_cv - avg_cv_team
+        
+        st.markdown(f"**⚖️ CONSISTENCIA (CV):** {v_cv:.2f} "
+                    f"<span style='color:{'green' if diff_cv >=0 else 'red'}'>({diff_cv:+.2f} vs Promedio)</span>", 
+                    unsafe_allow_html=True)
+        
+        st.info("💡 **Insight:** La consistencia es el camino al éxito.")

@@ -1,121 +1,180 @@
-# =============================================================================
-# 🏆 ATHLOS 360 - APP DE VISUALIZACIÓN DE TRIATLÓN (VERSIÓN DEFINITIVA)
-# =============================================================================
-import streamlit as st
+# ==============================================================================
+# 🧠 CLUB TYM V120 - LA SOLUCIÓN DEFINITIVA (LIMPIEZA Y FORMATO)
+# ==============================================================================
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+import numpy as np
+import os
 import re
+from datetime import datetime, time
+from openpyxl import load_workbook
+from openpyxl.styles import NamedStyle
 
-# 1. CONFIGURACIÓN DE LA PÁGINA
-st.set_page_config(
-    page_title="Athlos 360",
-    page_icon="🏊‍♂️",
-    layout="wide"
-)
+# --- CONFIGURACIÓN DE ARCHIVOS ---
+ARCHIVO_HISTORICO = "historico.xlsx"
+ARCHIVO_SEMANA    = "semana.xlsx"
+# ---------------------------------
 
-# Título Principal
-st.title("🏊‍♂️🚴‍♂️🏃‍♂️ Athlos 360 - Dashboard de Rendimiento")
-st.markdown("---")
+print(f"🚀 Iniciando Cerebro V120 (Reinicio Total)...")
 
-# 2. FUNCIÓN DE CARGA DE DATOS (BLINDADA)
-@st.cache_data(ttl=60)
-def load_data():
-    file_path = "06 Sem (tst).xlsx"
+# 1. VERIFICACIÓN DE SEGURIDAD
+if not os.path.exists(ARCHIVO_HISTORICO):
+    raise SystemExit(f"❌ ERROR CRÍTICO: No encuentro '{ARCHIVO_HISTORICO}'. Súbelo a la carpeta.")
+if not os.path.exists(ARCHIVO_SEMANA):
+    raise SystemExit(f"❌ ERROR CRÍTICO: No encuentro '{ARCHIVO_SEMANA}'. Súbelo a la carpeta.")
+
+# 2. FUNCIONES DE CONVERSIÓN (MATEMÁTICA PURA)
+def convertir_a_numero_excel(valor):
+    """
+    Convierte cualquier cosa (texto '12:00:00', objeto tiempo, etc.) 
+    a un número decimal de Excel (ej: 0.5 para mediodía).
+    """
+    if pd.isna(valor) or valor == '' or str(valor).strip() in ['-', 'nan', 'NC', '0', '00:00:00']: 
+        return 0.0
+    
     try:
-        # Cargamos la hoja de Distancia para sacar la lista de atletas y datos generales
-        df = pd.read_excel(file_path, sheet_name="Distancia Total")
+        # Si ya es número, devolverlo tal cual
+        if isinstance(valor, (int, float)):
+            return float(valor)
         
-        # Limpieza básica de columnas (quitar espacios extra)
-        df.columns = [str(c).strip() for c in df.columns]
+        # Si es un objeto de tiempo de Python
+        if isinstance(valor, (datetime, time)):
+            if isinstance(valor, datetime): valor = valor.time()
+            segundos = valor.hour*3600 + valor.minute*60 + valor.second
+            return segundos / 86400.0
         
-        return df
-    except Exception as e:
-        st.error(f"❌ Error crítico al leer el archivo: {e}")
-        return pd.DataFrame()
+        # Si es texto "HH:MM:SS"
+        s = str(valor).strip()
+        parts = list(map(int, s.split(':')))
+        
+        segundos = 0
+        if len(parts) == 3: # HH:MM:SS
+            segundos = parts[0]*3600 + parts[1]*60 + parts[2]
+        elif len(parts) == 2: # MM:SS
+            segundos = parts[0]*60 + parts[1]
+            
+        if segundos > 0:
+            return segundos / 86400.0
+            
+    except:
+        return 0.0
+    return 0.0
 
-# Cargar los datos
-df = load_data()
+def limpiar_numero(val):
+    """Limpia textos de números con comas, etc."""
+    if pd.isna(val) or str(val).strip() in ['-', 'nan', '']: return 0.0
+    try: return float(str(val).replace(',', '.'))
+    except: return 0.0
 
-# 3. BARRA LATERAL (SELECTOR INTELIGENTE)
-st.sidebar.header("👤 Panel del Atleta")
-
-if df.empty:
-    st.sidebar.warning("Esperando datos...")
-    st.stop()
-
-# Buscar la columna de nombre (puede ser 'Nombre', 'Deportista', etc.)
-posibles_nombres = ['Nombre', 'Deportista', 'Atleta', 'Nombre ']
-col_nombre = next((c for c in df.columns if c in posibles_nombres), None)
-
-if not col_nombre:
-    st.error("⚠️ No se encontró la columna de 'Nombre' en el Excel.")
-    st.stop()
-
-# Crear lista de atletas limpia
-lista_atletas = sorted([x for x in df[col_nombre].unique() if str(x) != 'nan' and str(x) != '0'])
-lista_atletas.insert(0, "Selecciona tu nombre...")
-
-# El Selector
-atleta = st.sidebar.selectbox("Búscate aquí:", lista_atletas)
-
-# 4. LÓGICA PRINCIPAL (MOSTRAR DATOS)
-if atleta == "Selecciona tu nombre...":
-    st.info("👈 ¡Hola! Por favor selecciona tu nombre en el menú de la izquierda para ver tus estadísticas.")
-    
-    # Mostrar un Top 5 general para que no se vea vacío
-    st.subheader("🏆 Top 5 - Distancia Acumulada (Km)")
-    
-    # Buscar última semana disponible para el ranking
-    cols_sem = [c for c in df.columns if c.startswith("Sem")]
-    if cols_sem:
-        # Ordenar por la última semana o acumulado si existe
-        ultima_sem = cols_sem[-1]
-        top_5 = df.nlargest(5, ultima_sem)[[col_nombre, ultima_sem]]
-        st.table(top_5)
-    
-    st.stop()
-
-# --- SI HAY ATLETA SELECCIONADO ---
-
-# Filtrar datos del atleta
-datos_atleta = df[df[col_nombre] == atleta].iloc[0]
-
-st.subheader(f"📊 Estadísticas de: {atleta}")
-
-# 5. PREPARAR DATOS PARA EL GRÁFICO
-# Extraer solo las columnas que son semanas ("Sem 01", "Sem 02"...)
-columnas_semanas = [c for c in df.columns if c.startswith("Sem")]
-
-# Crear un DataFrame pequeñito solo para el gráfico
-historia = {
-    'Semana': columnas_semanas,
-    'Distancia (km)': [datos_atleta.get(c, 0) for c in columnas_semanas]
+# 3. MAPA DE TRABAJO (QUE BUSCAR Y COMO TRATARLO)
+MAPA = {
+    'Tiempo Total':     {'col': 'Tiempo Total (hh:mm:ss)',   'tipo': 'tiempo'},
+    'Distancia Total':  {'col': 'Distancia Total (km)',      'tipo': 'num'},
+    'Altimetría Total': {'col': 'Altimetría Total (m)',      'tipo': 'num'},
+    'Natación':         {'col': 'Nat: Tiempo (hh:mm:ss)',    'tipo': 'tiempo'},
+    'Nat Distancia':    {'col': 'Nat: Distancia (km)',       'tipo': 'num'},
+    'Nat Ritmo':        {'col': 'Nat: Ritmo (min/100m)',     'tipo': 'tiempo'},
+    'Ciclismo':         {'col': 'Ciclismo: Tiempo (hh:mm:ss)','tipo': 'tiempo'},
+    'Ciclismo Distancia':{'col': 'Ciclismo: Distancia (km)',  'tipo': 'num'},
+    'Ciclismo Desnivel':{'col': 'Ciclismo: KOM/Desnivel (m)','tipo': 'num'},
+    'Trote':            {'col': 'Trote: Tiempo (hh:mm:ss)',  'tipo': 'tiempo'},
+    'Trote Distancia':  {'col': 'Trote: Distancia (km)',     'tipo': 'num'},
+    'Trote Ritmo':      {'col': 'Trote: Ritmo (min/km)',     'tipo': 'tiempo'},
+    'CV':               {'col': 'CV (Equilibrio)',           'tipo': 'num'}
 }
-df_grafico = pd.DataFrame(historia)
 
-# Limpiar datos (convertir a número y ceros si hay error)
-df_grafico['Distancia (km)'] = pd.to_numeric(df_grafico['Distancia (km)'], errors='coerce').fillna(0)
+try:
+    # 4. CARGA DE DATOS
+    xls = pd.ExcelFile(ARCHIVO_HISTORICO)
+    df_semana_raw = pd.read_excel(ARCHIVO_SEMANA)
+    # Limpiar nombres de columnas del semanal por si acaso tienen espacios
+    df_semana_proc = df_semana_raw.copy()
+    df_semana_proc.columns = [str(c).strip() for c in df_semana_proc.columns]
 
-# 6. DIBUJAR GRÁFICOS
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    st.markdown("### 📈 Evolución Semanal (Distancia)")
-    if not df_grafico.empty:
-        fig = px.line(
-            df_grafico, 
-            x='Semana', 
-            y='Distancia (km)', 
-            markers=True,
-            title=f"Kilómetros semanales de {atleta}"
-        )
-        fig.update_layout(yaxis_title="Km Totales")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("No hay datos históricos para graficar.")
-
-with col2:
-    st.markdown("### 🏅 Resumen")
+    # 5. DETECTAR SEMANA AUTOMÁTICAMENTE
+    hojas_existentes = xls.sheet_names
+    numeros = []
+    for h in hojas_existentes:
+        m = re.search(r'Sem.*?(\d+)', h, re.IGNORECASE)
+        if m: numeros.append(int(m.group(1)))
     
-    # Calcular totales
+    numeros.sort()
+    # Ignorar semanas antiguas (ej: 50, 51 del año pasado) para la serie nueva
+    serie_actual = [n for n in numeros if n < 40]
+    max_sem = max(serie_actual) if serie_actual else 0
+    
+    nuevo_num = max_sem + 1
+    nombre_hoja_nueva = f"Sem {nuevo_num:02d}"
+    print(f"🎯 Última semana detectada: {max_sem}. Generando: {nombre_hoja_nueva}")
+
+    # Preparar el archivo de salida
+    fecha_str = datetime.now().strftime("%Y%m%d_%H%M")
+    nombre_salida = f"HISTORICO_NUEVO_{fecha_str}.xlsx"
+    writer = pd.ExcelWriter(nombre_salida, engine='openpyxl')
+
+    hojas_procesadas = []
+    
+    # 6. PROCESAMIENTO DE CADA HOJA DEL HISTÓRICO
+    for hoja in xls.sheet_names:
+        df = pd.read_excel(xls, sheet_name=hoja)
+        df.columns = [str(c).strip() for c in df.columns] 
+        
+        if hoja in MAPA:
+            print(f"  ... Procesando hoja: {hoja}")
+            cfg = MAPA[hoja]
+            tipo = cfg['tipo']
+
+            # A. INSERTAR COLUMNA NUEVA (Sem XX)
+            cols_sem = [c for c in df.columns if re.search(r'Sem.*?(\d+)', c, re.IGNORECASE)]
+            col_ancla = None
+            if cols_sem:
+                # Buscar la última semana válida para insertar después
+                for c in reversed(cols_sem):
+                    m = re.search(r'(\d+)', c)
+                    if m and int(m.group(1)) == max_sem: col_ancla = c; break
+                
+                if col_ancla: 
+                    idx = df.columns.get_loc(col_ancla) + 1
+                else: 
+                    idx = len(df.columns)
+            else:
+                idx = df.columns.get_loc("Promedio") if "Promedio" in df.columns else len(df.columns)
+
+            if nombre_hoja_nueva not in df.columns:
+                df.insert(idx, nombre_hoja_nueva, 0.0)
+
+            # B. LLENAR DATOS DE LA SEMANA ACTUAL
+            col_target = cfg['col']
+            # Buscar columna de nombre en semanal
+            col_nom = next((c for c in df_semana_proc.columns if str(c).lower() in ['nombre', 'deportista']), None)
+            
+            if col_nom and col_target in df_semana_proc.columns:
+                datos = dict(zip(df_semana_proc[col_nom].astype(str).str.strip().str.lower(), df_semana_proc[col_target]))
+                # Buscar columna de nombre en histórico
+                col_hist = next((c for c in df.columns if str(c).lower() in ['nombre', 'deportista', 'atleta']), None)
+                
+                if col_hist:
+                    # Estandarizar nombre de columna a 'Nombre' para evitar problemas en la App
+                    df.rename(columns={col_hist: 'Nombre'}, inplace=True)
+                    
+                    for i, row in df.iterrows():
+                        n = str(row['Nombre']).strip().lower()
+                        raw = datos.get(n, 0)
+                        if tipo == 'tiempo': 
+                            df.at[i, nombre_hoja_nueva] = convertir_a_numero_excel(raw)
+                        else: 
+                            df.at[i, nombre_hoja_nueva] = limpiar_numero(raw)
+
+            # C. NORMALIZACIÓN TOTAL (TODO A NÚMEROS)
+            # Convertimos TODAS las columnas de semana a float. Esto es vital para la App.
+            cols_semanas_todas = [c for c in df.columns if re.search(r'Sem.*?(\d+)', c, re.IGNORECASE)]
+            
+            if tipo == 'tiempo':
+                for col in cols_semanas_todas:
+                    df[col] = df[col].apply(convertir_a_numero_excel).astype(float)
+            else:
+                for col in cols_semanas_todas:
+                    df[col] = df[col].apply(limpiar_numero).astype(float)
+
+            # D. RECÁLCULO DE TOTALES Y PROMEDIOS
+            for i, row in df.iterrows():
+                vals = [row[c] for c in cols_semanas_todas if row

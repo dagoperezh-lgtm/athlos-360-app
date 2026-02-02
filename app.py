@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V15.0 (RANKINGS GLOBALES + VELOCIDAD CICLISMO)
+# 🦅 ATHLOS 360 - V15.1 (ESTILO PRO: AZUL + RANKINGS GRANDES)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -9,25 +9,62 @@ import math
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 
-# ESTILOS CSS
+# ESTILOS CSS (DISEÑO MEJORADO)
 st.markdown("""
 <style>
-    .cover-title { font-size: 40px; font-weight: bold; text-align: center; color: #1E1E1E; margin-top: 10px; }
-    .cover-sub { font-size: 20px; text-align: center; color: #666; margin-bottom: 40px; }
-    .main-title { font-size: 28px; font-weight: bold; color: #000; margin-bottom: 5px; }
-    .sub-title { font-size: 18px; color: #666; margin-bottom: 10px; }
-    .rank-badge { 
-        background-color: #FF4B4B; color: white; padding: 5px 10px; border-radius: 15px; 
-        font-size: 14px; font-weight: bold; margin-right: 10px; display: inline-block;
+    /* PORTADA */
+    .cover-title { font-size: 45px; font-weight: bold; text-align: center; color: #003366; margin-top: 10px; }
+    .cover-sub { font-size: 22px; text-align: center; color: #666; margin-bottom: 40px; }
+    
+    /* ENCABEZADOS */
+    .main-title { font-size: 32px; font-weight: bold; color: #000; margin-bottom: 5px; }
+    .sub-title { font-size: 18px; color: #666; margin-bottom: 15px; }
+    
+    /* RANKINGS (NUEVO DISEÑO) */
+    .rank-container { 
+        margin-bottom: 25px; 
+        padding-bottom: 15px; 
+        border-bottom: 3px solid #003366; /* Línea Azul Marino */
     }
-    .rank-container { margin-bottom: 20px; border-bottom: 2px solid #FF4B4B; padding-bottom: 10px; }
-    .card-box { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 15px; }
-    .stat-label { font-size: 14px; font-weight: bold; color: #555; }
-    .stat-value { font-size: 22px; font-weight: bold; color: #000; }
-    .comp-text { font-size: 13px; margin-top: 5px; }
-    .pos { color: #008000; font-weight: bold; }
-    .neg { color: #D00000; font-weight: bold; }
-    .disc-header { background-color: #eee; padding: 8px; font-weight: bold; border-radius: 5px; margin-top: 10px; }
+    .rank-badge { 
+        background-color: #003366; /* Azul Marino Institucional */
+        color: white; 
+        padding: 8px 18px; 
+        border-radius: 8px; 
+        font-size: 20px; /* TEXTO MÁS GRANDE */
+        font-weight: bold; 
+        margin-right: 15px; 
+        display: inline-block;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    
+    /* TARJETAS DE DATOS */
+    .card-box { 
+        background-color: #f8f9fa; 
+        padding: 18px; 
+        border-radius: 10px; 
+        border: 1px solid #e0e0e0; 
+        border-left: 5px solid #003366; /* Borde Azul */
+        margin-bottom: 15px; 
+    }
+    .stat-label { font-size: 15px; font-weight: bold; color: #555; text-transform: uppercase; }
+    .stat-value { font-size: 26px; font-weight: bold; color: #000; }
+    .comp-text { font-size: 14px; margin-top: 5px; color: #444; }
+    
+    /* COLORES DE COMPARATIVA */
+    .pos { color: #008000; font-weight: bold; } /* Verde */
+    .neg { color: #B22222; font-weight: bold; } /* Rojo oscuro discreto para negativos */
+    
+    /* ENCABEZADO DE DISCIPLINA */
+    .disc-header { 
+        background-color: #E6F0FA; /* Azul muy suave */
+        padding: 10px 15px; 
+        font-weight: bold; 
+        font-size: 18px;
+        border-radius: 8px; 
+        margin-top: 15px; 
+        color: #003366;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -159,35 +196,28 @@ else:
     # 2. CÁLCULO DE RANKINGS (Globales)
     def get_rank(df_in):
         if df_in is None or ultima_sem not in df_in.columns: return "-"
-        # Crear copia limpia para rankear
         df_rank = df_in.copy()
-        # Detectar si es tiempo (contiene :) o numero
         sample = str(df_rank[ultima_sem].iloc[0])
         is_time = ':' in sample
-        
         df_rank['sort_val'] = df_rank[ultima_sem].apply(lambda x: clean_time(x) if is_time else clean_num(x))
         df_rank['rank'] = df_rank['sort_val'].rank(ascending=False, method='min')
-        
-        # Buscar rank del atleta
         mask = df_rank['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()
         if not df_rank[mask].empty:
             r = int(df_rank[mask]['rank'].values[0])
-            total = len(df_rank)
             return f"#{r}"
         return "-"
 
     rank_dist = get_rank(data['Global']['D'])
     rank_time = get_rank(data['Global']['T'])
 
-    # 3. HEADER CON RANKINGS
+    # 3. HEADER CON RANKINGS (ESTILO AZUL Y GRANDE)
     st.markdown(f"<div class='main-title'>🦅 REPORTE 360°: {atleta_sel}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='sub-title'>Reporte Semanal: {ultima_sem}</div>", unsafe_allow_html=True)
     
-    # Badges de Posición
     st.markdown(f"""
     <div class='rank-container'>
-        <span class='rank-badge'>🏆 Posición Club (Km): {rank_dist}</span>
-        <span class='rank-badge'>⏱️ Posición Club (Tiempo): {rank_time}</span>
+        <span class='rank-badge'>🏆 Posición (Km): {rank_dist}</span>
+        <span class='rank-badge'>⏱️ Posición (Tiempo): {rank_time}</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -195,10 +225,8 @@ else:
     def get_kpi(cat, key, is_t=False):
         df = data[cat][key]
         if df is None: return 0,0,0
-        # Team Avg
         vals_t = [clean_time(x) if is_t else clean_num(x) for x in df[ultima_sem]] if ultima_sem in df.columns else []
         avg_t = sum(vals_t)/len(vals_t) if vals_t else 0
-        # Atleta
         row = df[df['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()]
         val, avg_h = 0, 0
         if not row.empty:
@@ -207,37 +235,30 @@ else:
             avg_h = sum(h_vals)/len(h_vals) if h_vals else 0
         return val, avg_t, avg_h
 
-    # 5. CÁLCULO VELOCIDAD CICLISMO (NUEVO)
+    # 5. CÁLCULO VELOCIDAD CICLISMO
     def get_cycling_speed():
-        # Obtenemos datos crudos de tiempo y distancia
         t_now, t_avg_team, _ = get_kpi('Bici', 'T', True)
         d_now, d_avg_team, _ = get_kpi('Bici', 'D', False)
         
-        # Histórico: Calculamos velocidad semana a semana y promediamos
         df_t = data['Bici']['T']; df_d = data['Bici']['D']
         hist_speeds = []
-        
         if df_t is not None and df_d is not None:
             row_t = df_t[df_t['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()]
             row_d = df_d[df_d['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()]
-            
             if not row_t.empty and not row_d.empty:
                 for c in cols_sem:
                     if c in row_t.columns and c in row_d.columns:
                         t = clean_time(row_t[c].values[0])
                         d = clean_num(row_d[c].values[0])
-                        if t > 0.001: # Evitar div por cero
-                            hist_speeds.append(d / (t*24))
+                        if t > 0.001: hist_speeds.append(d / (t*24))
         
         spd_now = d_now / (t_now*24) if t_now > 0.001 else 0
         spd_team = d_avg_team / (t_avg_team*24) if t_avg_team > 0.001 else 0
         spd_hist = sum(hist_speeds)/len(hist_speeds) if hist_speeds else 0
-        
         return spd_now, spd_team, spd_hist
 
     # --- RENDERIZADO ---
     
-    # Global
     tv, ta, th = get_kpi('Global', 'T', True)
     dv, da, dh = get_kpi('Global', 'D', False)
     av, aa, ah = get_kpi('Global', 'A', False)
@@ -246,14 +267,6 @@ else:
     with c1: st.markdown(f"""<div class="card-box"><div class="stat-label">⏱️ Tiempo Total</div><div class="stat-value">{fmt_h_m(tv)}</div><div class="comp-text">👥 Vs Eq: <span class="{ 'pos' if (tv-ta)>=0 else 'neg' }">{fmt_diff(tv-ta, True)}</span><br>📅 Vs Hist: <span class="{ 'pos' if (tv-th)>=0 else 'neg' }">{fmt_diff(tv-th, True)}</span></div></div>""", unsafe_allow_html=True)
     with c2: st.markdown(f"""<div class="card-box"><div class="stat-label">📏 Distancia</div><div class="stat-value">{dv:.1f} km</div><div class="comp-text">👥 Vs Eq: <span class="{ 'pos' if (dv-da)>=0 else 'neg' }">{fmt_diff(dv-da)} km</span><br>📅 Vs Hist: <span class="{ 'pos' if (dv-dh)>=0 else 'neg' }">{fmt_diff(dv-dh)} km</span></div></div>""", unsafe_allow_html=True)
     with c3: st.markdown(f"""<div class="card-box"><div class="stat-label">⛰️ Altimetría</div><div class="stat-value">{av:.0f} m</div><div class="comp-text">Acumulado Semanal</div></div>""", unsafe_allow_html=True)
-
-    # Disciplinas
-    def draw_row(lbl, val, dif_eq, dif_hi):
-        ce = "pos" if (dif_eq[0] if isinstance(dif_eq, tuple) else (float(dif_eq.replace('+','').replace('h','').split(' ')[0]) if 'h' in str(dif_eq) else float(dif_eq.replace('+','').split(' ')[0] if dif_eq != '-' else 0))) >= 0 else "neg"
-        ch = "pos" if (dif_hi[0] if isinstance(dif_hi, tuple) else (float(dif_hi.replace('+','').replace('h','').split(' ')[0]) if 'h' in str(dif_hi) else float(dif_hi.replace('+','').split(' ')[0] if dif_hi != '-' else 0))) >= 0 else "neg"
-        # Simplificación de colores: Verde si positivo (o mejor ritmo), Rojo si negativo.
-        # Para Ritmo (pace) es al revés, pero por ahora estandarizamos.
-        return f"<tr><td><b>{lbl}</b></td><td>{val}</td><td class='{ce}'>{dif_eq}</td><td class='{ch}'>{dif_hi}</td></tr>"
 
     def draw_disc(tit, icon, cat, x_type):
         st.markdown(f"<div class='disc-header'>{icon} {tit}</div>", unsafe_allow_html=True)
@@ -265,18 +278,15 @@ else:
         rows_html += f"<tr><td><b>Distancia</b></td><td>{d_v:.1f} km</td><td class='{ 'pos' if d_v>=d_a else 'neg'}'>{fmt_diff(d_v-d_a)}</td><td class='{ 'pos' if d_v>=d_h else 'neg'}'>{fmt_diff(d_v-d_h)}</td></tr>"
 
         if x_type == 'elev':
-            # Extra 1: Desnivel
             e_v, e_a, e_h = get_kpi(cat, 'E', False)
             rows_html += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
             
-            # Extra 2: Velocidad (Solo Bici)
             s_v, s_a, s_h = get_cycling_speed()
             s_diff_eq = s_v - s_a
             s_diff_hi = s_v - s_h
             rows_html += f"<tr><td><b>Velocidad</b></td><td>{s_v:.1f} km/h</td><td class='{ 'pos' if s_diff_eq>=0 else 'neg'}'>{fmt_diff(s_diff_eq)}</td><td class='{ 'pos' if s_diff_hi>=0 else 'neg'}'>{fmt_diff(s_diff_hi)}</td></tr>"
             
         else:
-            # Ritmo
             e_v, e_a, e_h = get_kpi(cat, 'R', True)
             rows_html += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(e_v, 'swim' if x_type=='swim' else 'run')}</td><td>-</td><td>-</td></tr>"
 

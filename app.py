@@ -1,12 +1,12 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V14.0 (SIN CV EN FICHA + FIX NOMBRES)
+# 🦅 ATHLOS 360 - V15.0 (RANKINGS GLOBALES + VELOCIDAD CICLISMO)
 # =============================================================================
 import streamlit as st
 import pandas as pd
 import os
 import math
 
-# --- 1. CONFIGURACIÓN INICIAL ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 
 # ESTILOS CSS
@@ -15,7 +15,12 @@ st.markdown("""
     .cover-title { font-size: 40px; font-weight: bold; text-align: center; color: #1E1E1E; margin-top: 10px; }
     .cover-sub { font-size: 20px; text-align: center; color: #666; margin-bottom: 40px; }
     .main-title { font-size: 28px; font-weight: bold; color: #000; margin-bottom: 5px; }
-    .sub-title { font-size: 18px; color: #666; margin-bottom: 20px; border-bottom: 2px solid #FF4B4B; }
+    .sub-title { font-size: 18px; color: #666; margin-bottom: 10px; }
+    .rank-badge { 
+        background-color: #FF4B4B; color: white; padding: 5px 10px; border-radius: 15px; 
+        font-size: 14px; font-weight: bold; margin-right: 10px; display: inline-block;
+    }
+    .rank-container { margin-bottom: 20px; border-bottom: 2px solid #FF4B4B; padding-bottom: 10px; }
     .card-box { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 15px; }
     .stat-label { font-size: 14px; font-weight: bold; color: #555; }
     .stat-value { font-size: 22px; font-weight: bold; color: #000; }
@@ -31,21 +36,16 @@ if 'club_activo' not in st.session_state:
     st.session_state['club_activo'] = None
 
 # =============================================================================
-# 🚪 FASE 1: PORTADA (INSTANTÁNEA)
+# 🚪 FASE 1: PORTADA
 # =============================================================================
 if st.session_state['club_activo'] is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        if os.path.exists("logo_athlos.png"):
-            st.image("logo_athlos.png", use_container_width=True)
-        else:
-            st.markdown("<div class='cover-title'>ATHLOS 360</div>", unsafe_allow_html=True)
-        
+        if os.path.exists("logo_athlos.png"): st.image("logo_athlos.png", use_container_width=True)
+        else: st.markdown("<div class='cover-title'>ATHLOS 360</div>", unsafe_allow_html=True)
         st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
         
-        club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
-        
-        if club_sel == "TYM Triathlon":
+        if st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"]) == "TYM Triathlon":
             if st.button("INGRESAR AL DASHBOARD 🚀", type="primary", use_container_width=True):
                 st.session_state['club_activo'] = "TYM Triathlon"
                 st.rerun()
@@ -54,7 +54,6 @@ if st.session_state['club_activo'] is None:
 # =============================================================================
 # 📊 FASE 2: MOTOR DE DATOS
 # =============================================================================
-
 ARCHIVO = "06 Sem (tst).xlsx"
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -72,6 +71,7 @@ def get_df_cache(nombre_hoja):
     except: return None
     return None
 
+# --- HERRAMIENTAS DE LIMPIEZA ---
 def clean_time(val):
     if pd.isna(val) or str(val).strip() in ['','-','nan','0','00:00:00','None']: return 0.0
     s = str(val).strip().split(' ')[-1]
@@ -117,9 +117,8 @@ def fmt_diff(v, is_t=False):
     return f"{signo}{v:.1f}"
 
 # =============================================================================
-# 🖥️ FASE 3: INTERFAZ DEL CLUB
+# 🖥️ FASE 3: INTERFAZ
 # =============================================================================
-
 with st.sidebar:
     if os.path.exists("logo_athlos.png"): st.image("logo_athlos.png")
     st.markdown("### 🦁 TYM Triathlon")
@@ -131,13 +130,10 @@ with st.sidebar:
     with st.spinner("Cargando datos..."):
         df_base = get_df_cache("Distancia Total")
     
-    if df_base is None:
-        st.error("⚠️ Error cargando datos.")
-        st.stop()
+    if df_base is None: st.error("⚠️ Error cargando datos."); st.stop()
         
     nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
     nombres.insert(0, " Selecciona tu nombre...")
-    
     atleta_sel = st.selectbox("Busca tu perfil:", nombres)
 
 if atleta_sel == " Selecciona tu nombre...":
@@ -145,18 +141,14 @@ if atleta_sel == " Selecciona tu nombre...":
     st.markdown(f"<div class='cover-title'>Bienvenido al {st.session_state['club_activo']}</div>", unsafe_allow_html=True)
     st.markdown("<div class='cover-sub'>Panel de Análisis de Rendimiento V25</div>", unsafe_allow_html=True)
     c1,c2,c3=st.columns([1,2,1])
-    with c2:
-        st.info("👈 **Para comenzar:** Selecciona un atleta en el menú de la izquierda.")
-        if os.path.exists("logo_athlos.png"): st.image("logo_athlos.png", use_container_width=True)
+    with c2: st.info("👈 **Para comenzar:** Selecciona un atleta en el menú de la izquierda.")
 
 else:
-    # --- REPORTE INDIVIDUAL ---
+    # --- REPORTE DEL ATLETA ---
     cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
     ultima_sem = cols_sem[-1] if cols_sem else "N/A"
     
-    st.markdown(f"<div class='main-title'>🦅 REPORTE 360°: {atleta_sel}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='sub-title'>Reporte Semanal: {ultima_sem}</div>", unsafe_allow_html=True)
-
+    # 1. CARGA DE DATOS COMPLETOS
     data = {
         'Global': {'T': get_df_cache("Tiempo Total"), 'D': get_df_cache("Distancia Total"), 'A': get_df_cache("Altimetría Total")},
         'Nat': {'T': get_df_cache("Nat Tiempo") or get_df_cache("Natación"), 'D': get_df_cache("Nat Distancia"), 'R': get_df_cache("Nat Ritmo")},
@@ -164,56 +156,131 @@ else:
         'Trote': {'T': get_df_cache("Trote Tiempo") or get_df_cache("Trote"), 'D': get_df_cache("Trote Distancia"), 'R': get_df_cache("Trote Ritmo")}
     }
 
-    # CALCULADORA BLINDADA
+    # 2. CÁLCULO DE RANKINGS (Globales)
+    def get_rank(df_in):
+        if df_in is None or ultima_sem not in df_in.columns: return "-"
+        # Crear copia limpia para rankear
+        df_rank = df_in.copy()
+        # Detectar si es tiempo (contiene :) o numero
+        sample = str(df_rank[ultima_sem].iloc[0])
+        is_time = ':' in sample
+        
+        df_rank['sort_val'] = df_rank[ultima_sem].apply(lambda x: clean_time(x) if is_time else clean_num(x))
+        df_rank['rank'] = df_rank['sort_val'].rank(ascending=False, method='min')
+        
+        # Buscar rank del atleta
+        mask = df_rank['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()
+        if not df_rank[mask].empty:
+            r = int(df_rank[mask]['rank'].values[0])
+            total = len(df_rank)
+            return f"#{r}"
+        return "-"
+
+    rank_dist = get_rank(data['Global']['D'])
+    rank_time = get_rank(data['Global']['T'])
+
+    # 3. HEADER CON RANKINGS
+    st.markdown(f"<div class='main-title'>🦅 REPORTE 360°: {atleta_sel}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub-title'>Reporte Semanal: {ultima_sem}</div>", unsafe_allow_html=True)
+    
+    # Badges de Posición
+    st.markdown(f"""
+    <div class='rank-container'>
+        <span class='rank-badge'>🏆 Posición Club (Km): {rank_dist}</span>
+        <span class='rank-badge'>⏱️ Posición Club (Tiempo): {rank_time}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 4. CALCULADORA KPIs
     def get_kpi(cat, key, is_t=False):
         df = data[cat][key]
         if df is None: return 0,0,0
-        
-        # Avg Team
-        vals_team = []
-        if ultima_sem in df.columns:
-            for x in df[ultima_sem]:
-                vals_team.append(clean_time(x) if is_t else clean_num(x))
-        avg_team = sum(vals_team)/len(vals_team) if vals_team else 0
-        
-        # Atleta (Case Insensitive)
-        mask = df['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()
-        row = df[mask]
-        
-        val_now = 0; avg_hist = 0
+        # Team Avg
+        vals_t = [clean_time(x) if is_t else clean_num(x) for x in df[ultima_sem]] if ultima_sem in df.columns else []
+        avg_t = sum(vals_t)/len(vals_t) if vals_t else 0
+        # Atleta
+        row = df[df['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()]
+        val, avg_h = 0, 0
         if not row.empty:
-            raw = row[ultima_sem].values[0] if ultima_sem in row.columns else 0
-            val_now = clean_time(raw) if is_t else clean_num(raw)
-            # Hist
-            h_vals = []
-            for c in cols_sem:
-                if c in row.columns:
-                    h_vals.append(clean_time(row[c].values[0]) if is_t else clean_num(row[c].values[0]))
-            avg_hist = sum(h_vals)/len(h_vals) if h_vals else 0
-            
-        return val_now, avg_team, avg_hist
+            val = clean_time(row[ultima_sem].values[0]) if is_t else clean_num(row[ultima_sem].values[0])
+            h_vals = [clean_time(row[c].values[0]) if is_t else clean_num(row[c].values[0]) for c in cols_sem if c in row.columns]
+            avg_h = sum(h_vals)/len(h_vals) if h_vals else 0
+        return val, avg_t, avg_h
 
-    # RENDER
+    # 5. CÁLCULO VELOCIDAD CICLISMO (NUEVO)
+    def get_cycling_speed():
+        # Obtenemos datos crudos de tiempo y distancia
+        t_now, t_avg_team, _ = get_kpi('Bici', 'T', True)
+        d_now, d_avg_team, _ = get_kpi('Bici', 'D', False)
+        
+        # Histórico: Calculamos velocidad semana a semana y promediamos
+        df_t = data['Bici']['T']; df_d = data['Bici']['D']
+        hist_speeds = []
+        
+        if df_t is not None and df_d is not None:
+            row_t = df_t[df_t['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()]
+            row_d = df_d[df_d['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()]
+            
+            if not row_t.empty and not row_d.empty:
+                for c in cols_sem:
+                    if c in row_t.columns and c in row_d.columns:
+                        t = clean_time(row_t[c].values[0])
+                        d = clean_num(row_d[c].values[0])
+                        if t > 0.001: # Evitar div por cero
+                            hist_speeds.append(d / (t*24))
+        
+        spd_now = d_now / (t_now*24) if t_now > 0.001 else 0
+        spd_team = d_avg_team / (t_avg_team*24) if t_avg_team > 0.001 else 0
+        spd_hist = sum(hist_speeds)/len(hist_speeds) if hist_speeds else 0
+        
+        return spd_now, spd_team, spd_hist
+
+    # --- RENDERIZADO ---
+    
+    # Global
     tv, ta, th = get_kpi('Global', 'T', True)
     dv, da, dh = get_kpi('Global', 'D', False)
     av, aa, ah = get_kpi('Global', 'A', False)
     
-    c1, c2, c3 = st.columns(3)
+    c1,c2,c3 = st.columns(3)
     with c1: st.markdown(f"""<div class="card-box"><div class="stat-label">⏱️ Tiempo Total</div><div class="stat-value">{fmt_h_m(tv)}</div><div class="comp-text">👥 Vs Eq: <span class="{ 'pos' if (tv-ta)>=0 else 'neg' }">{fmt_diff(tv-ta, True)}</span><br>📅 Vs Hist: <span class="{ 'pos' if (tv-th)>=0 else 'neg' }">{fmt_diff(tv-th, True)}</span></div></div>""", unsafe_allow_html=True)
     with c2: st.markdown(f"""<div class="card-box"><div class="stat-label">📏 Distancia</div><div class="stat-value">{dv:.1f} km</div><div class="comp-text">👥 Vs Eq: <span class="{ 'pos' if (dv-da)>=0 else 'neg' }">{fmt_diff(dv-da)} km</span><br>📅 Vs Hist: <span class="{ 'pos' if (dv-dh)>=0 else 'neg' }">{fmt_diff(dv-dh)} km</span></div></div>""", unsafe_allow_html=True)
     with c3: st.markdown(f"""<div class="card-box"><div class="stat-label">⛰️ Altimetría</div><div class="stat-value">{av:.0f} m</div><div class="comp-text">Acumulado Semanal</div></div>""", unsafe_allow_html=True)
+
+    # Disciplinas
+    def draw_row(lbl, val, dif_eq, dif_hi):
+        ce = "pos" if (dif_eq[0] if isinstance(dif_eq, tuple) else (float(dif_eq.replace('+','').replace('h','').split(' ')[0]) if 'h' in str(dif_eq) else float(dif_eq.replace('+','').split(' ')[0] if dif_eq != '-' else 0))) >= 0 else "neg"
+        ch = "pos" if (dif_hi[0] if isinstance(dif_hi, tuple) else (float(dif_hi.replace('+','').replace('h','').split(' ')[0]) if 'h' in str(dif_hi) else float(dif_hi.replace('+','').split(' ')[0] if dif_hi != '-' else 0))) >= 0 else "neg"
+        # Simplificación de colores: Verde si positivo (o mejor ritmo), Rojo si negativo.
+        # Para Ritmo (pace) es al revés, pero por ahora estandarizamos.
+        return f"<tr><td><b>{lbl}</b></td><td>{val}</td><td class='{ce}'>{dif_eq}</td><td class='{ch}'>{dif_hi}</td></tr>"
 
     def draw_disc(tit, icon, cat, x_type):
         st.markdown(f"<div class='disc-header'>{icon} {tit}</div>", unsafe_allow_html=True)
         t_v, t_a, t_h = get_kpi(cat, 'T', True)
         d_v, d_a, d_h = get_kpi(cat, 'D', False)
+        
+        rows_html = ""
+        rows_html += f"<tr><td><b>Tiempo</b></td><td>{fmt_h_m(t_v)}</td><td class='{ 'pos' if t_v>=t_a else 'neg'}'>{fmt_diff(t_v-t_a,True)}</td><td class='{ 'pos' if t_v>=t_h else 'neg'}'>{fmt_diff(t_v-t_h,True)}</td></tr>"
+        rows_html += f"<tr><td><b>Distancia</b></td><td>{d_v:.1f} km</td><td class='{ 'pos' if d_v>=d_a else 'neg'}'>{fmt_diff(d_v-d_a)}</td><td class='{ 'pos' if d_v>=d_h else 'neg'}'>{fmt_diff(d_v-d_h)}</td></tr>"
+
         if x_type == 'elev':
+            # Extra 1: Desnivel
             e_v, e_a, e_h = get_kpi(cat, 'E', False)
-            e_lbl, e_fmt = "Desnivel", f"{e_v:.0f} m"
+            rows_html += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
+            
+            # Extra 2: Velocidad (Solo Bici)
+            s_v, s_a, s_h = get_cycling_speed()
+            s_diff_eq = s_v - s_a
+            s_diff_hi = s_v - s_h
+            rows_html += f"<tr><td><b>Velocidad</b></td><td>{s_v:.1f} km/h</td><td class='{ 'pos' if s_diff_eq>=0 else 'neg'}'>{fmt_diff(s_diff_eq)}</td><td class='{ 'pos' if s_diff_hi>=0 else 'neg'}'>{fmt_diff(s_diff_hi)}</td></tr>"
+            
         else:
+            # Ritmo
             e_v, e_a, e_h = get_kpi(cat, 'R', True)
-            e_lbl, e_fmt = "Ritmo", fmt_pace(e_v, 'swim' if x_type=='swim' else 'run')
-        st.markdown(f"""<table style="width:100%; font-size:14px;"><tr style="color:#666; border-bottom:1px solid #ddd;"><th style="text-align:left">Métrica</th><th style="text-align:left">Dato</th><th style="text-align:left">Vs Equipo</th><th style="text-align:left">Vs Histórico</th></tr><tr><td><b>Tiempo</b></td><td>{fmt_h_m(t_v)}</td><td class="{ 'pos' if (t_v-t_a)>=0 else 'neg' }">{fmt_diff(t_v-t_a, True)}</td><td class="{ 'pos' if (t_v-t_h)>=0 else 'neg' }">{fmt_diff(t_v-t_h, True)}</td></tr><tr><td><b>Distancia</b></td><td>{d_v:.1f} km</td><td class="{ 'pos' if (d_v-d_a)>=0 else 'neg' }">{fmt_diff(d_v-d_a)}</td><td class="{ 'pos' if (d_v-d_h)>=0 else 'neg' }">{fmt_diff(d_v-d_h)}</td></tr><tr><td><b>{e_lbl}</b></td><td>{e_fmt}</td><td>-</td><td>-</td></tr></table>""", unsafe_allow_html=True)
+            rows_html += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(e_v, 'swim' if x_type=='swim' else 'run')}</td><td>-</td><td>-</td></tr>"
+
+        st.markdown(f"<table style='width:100%; font-size:14px;'><tr style='color:#666; border-bottom:1px solid #ddd;'><th style='text-align:left'>Métrica</th><th style='text-align:left'>Dato</th><th style='text-align:left'>Vs Equipo</th><th style='text-align:left'>Vs Histórico</th></tr>{rows_html}</table>", unsafe_allow_html=True)
 
     c_n, c_b, c_r = st.columns(3)
     with c_n: draw_disc("NATACIÓN", "🏊", "Nat", "swim")

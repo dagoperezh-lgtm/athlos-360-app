@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V13.1 (FIX: NOMBRES MAYÚSCULAS/MINÚSCULAS)
+# 🦅 ATHLOS 360 - V14.0 (SIN CV EN FICHA + FIX NOMBRES)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -150,7 +150,7 @@ if atleta_sel == " Selecciona tu nombre...":
         if os.path.exists("logo_athlos.png"): st.image("logo_athlos.png", use_container_width=True)
 
 else:
-    # --- REPORTE INDIVIDUAL (FIXED CASE SENSITIVITY) ---
+    # --- REPORTE INDIVIDUAL ---
     cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
     ultima_sem = cols_sem[-1] if cols_sem else "N/A"
     
@@ -158,27 +158,25 @@ else:
     st.markdown(f"<div class='sub-title'>Reporte Semanal: {ultima_sem}</div>", unsafe_allow_html=True)
 
     data = {
-        'Global': {'T': get_df_cache("Tiempo Total"), 'D': get_df_cache("Distancia Total"), 'A': get_df_cache("Altimetría Total"), 'CV': get_df_cache("CV")},
+        'Global': {'T': get_df_cache("Tiempo Total"), 'D': get_df_cache("Distancia Total"), 'A': get_df_cache("Altimetría Total")},
         'Nat': {'T': get_df_cache("Nat Tiempo") or get_df_cache("Natación"), 'D': get_df_cache("Nat Distancia"), 'R': get_df_cache("Nat Ritmo")},
         'Bici': {'T': get_df_cache("Ciclismo Tiempo") or get_df_cache("Ciclismo"), 'D': get_df_cache("Ciclismo Distancia"), 'E': get_df_cache("Ciclismo Desnivel")},
         'Trote': {'T': get_df_cache("Trote Tiempo") or get_df_cache("Trote"), 'D': get_df_cache("Trote Distancia"), 'R': get_df_cache("Trote Ritmo")}
     }
 
-    # CALCULADORA BLINDADA (BUSCA NOMBRE IGNORANDO MAYUS/MINUS)
+    # CALCULADORA BLINDADA
     def get_kpi(cat, key, is_t=False):
         df = data[cat][key]
         if df is None: return 0,0,0
         
-        # Avg Team (limpieza)
+        # Avg Team
         vals_team = []
         if ultima_sem in df.columns:
             for x in df[ultima_sem]:
                 vals_team.append(clean_time(x) if is_t else clean_num(x))
         avg_team = sum(vals_team)/len(vals_team) if vals_team else 0
         
-        # Atleta (Búsqueda Insensible a Mayúsculas)
-        # Convertimos la columna Nombre a minúsculas y buscamos el nombre seleccionado en minúsculas
-        # OJO: df['Nombre'] puede tener NaNs, convertimos a str
+        # Atleta (Case Insensitive)
         mask = df['Nombre'].astype(str).str.lower() == str(atleta_sel).lower()
         row = df[mask]
         
@@ -221,7 +219,3 @@ else:
     with c_n: draw_disc("NATACIÓN", "🏊", "Nat", "swim")
     with c_b: draw_disc("CICLISMO", "🚴", "Bici", "elev")
     with c_r: draw_disc("TROTE", "🏃", "Trote", "run")
-
-    st.markdown("---")
-    cv, cva, _ = get_kpi('Global', 'CV', False)
-    st.info(f"⚖️ **CONSISTENCIA (CV):** {cv:.2f} (Vs Equipo: {fmt_diff(cv-cva)})")

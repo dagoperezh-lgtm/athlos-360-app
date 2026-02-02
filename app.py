@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - REPORTE TÉCNICO V25 (ESTRICTO)
+# 🦅 ATHLOS 360 - REPORTE TÉCNICO V25 (V10.1 FIX CACHE)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -24,29 +24,34 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE DATOS (LECTURA SEGURA) ---
+# --- 2. MOTOR DE DATOS (CORREGIDO: CACHEABLE) ---
 ARCHIVO = "06 Sem (tst).xlsx"
 
-@st.cache_data(ttl=60)
-def cargar_excel():
-    if not os.path.exists(ARCHIVO): return None
-    try:
-        return pd.ExcelFile(ARCHIVO, engine='openpyxl')
-    except: return None
+# Eliminamos la función cargar_excel que causaba el error de serialización.
+# Ahora get_df hace todo el trabajo y devuelve un DataFrame (que sí es cacheable).
 
 @st.cache_data(ttl=60)
 def get_df(nombre_hoja):
-    xl = cargar_excel()
-    if xl is None: return None
-    # Buscar hoja flexible (ej: "Nat Ritmo" o "Nat: Ritmo")
-    target = next((h for h in xl.sheet_names if nombre_hoja.lower() in h.lower().replace(":","")), None)
-    if target:
-        df = pd.read_excel(xl, sheet_name=target)
-        df.columns = [str(c).strip() for c in df.columns]
-        # Normalizar columna nombre
-        col = next((c for c in df.columns if c.lower() in ['nombre','deportista','atleta']), None)
-        if col: df.rename(columns={col: 'Nombre'}, inplace=True)
-        return df
+    if not os.path.exists(ARCHIVO): return None
+    try:
+        # Leemos el archivo Excel completo cada vez (es rápido si se cachea el resultado final)
+        xls = pd.ExcelFile(ARCHIVO, engine='openpyxl')
+        
+        # Buscar hoja flexible (ej: "Nat Ritmo" o "Nat: Ritmo")
+        # .replace(":","") ayuda a encontrar coincidencias aunque falten los dos puntos
+        target = next((h for h in xls.sheet_names if nombre_hoja.lower() in h.lower().replace(":","")), None)
+        
+        if target:
+            df = pd.read_excel(xls, sheet_name=target)
+            df.columns = [str(c).strip() for c in df.columns]
+            
+            # Normalizar columna nombre
+            col = next((c for c in df.columns if c.lower() in ['nombre','deportista','atleta']), None)
+            if col: df.rename(columns={col: 'Nombre'}, inplace=True)
+            return df
+            
+    except Exception as e:
+        return None
     return None
 
 # --- 3. SANITIZADORES (FIX "NÚMEROS INFINITOS") ---

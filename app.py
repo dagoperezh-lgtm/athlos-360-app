@@ -18,7 +18,7 @@ st.set_page_config(
 # --- 2. BARRA LATERAL (LOGO Y CLUB) ---
 with st.sidebar:
     # A. LOGO (Intenta cargar 'logo.png', si no existe pone texto)
-    logo_path = "logo.png"  # <--- ASEGÚRATE QUE TU LOGO SE LLAME ASÍ EN GITHUB
+    logo_path = "logo_athlos.png"  # <--- ASEGÚRATE QUE TU LOGO SE LLAME ASÍ EN GITHUB
     if os.path.exists(logo_path):
         st.image(logo_path, use_container_width=True)
     else:

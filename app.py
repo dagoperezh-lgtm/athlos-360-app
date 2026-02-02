@@ -1,5 +1,5 @@
 # =============================================================================
-# 🏆 ATHLOS 360 - APP V6.0 (LECTOR DE DATOS NORMALIZADOS)
+# 🦅 ATHLOS 360 - APP V7.0 (LA RECONSTRUCCIÓN TOTAL)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -7,135 +7,224 @@ import plotly.express as px
 import plotly.graph_objects as go
 import os
 
-st.set_page_config(page_title="Athlos 360", layout="wide", page_icon="🦅")
+# --- 1. CONFIGURACIÓN E IDENTIDAD ---
+st.set_page_config(
+    page_title="Athlos 360",
+    page_icon="🦅",
+    layout="wide",
+    initial_sidebar_state="collapsed" # Barra lateral oculta al inicio (Efecto Portada)
+)
 
-# --- 1. CARGA DE DATOS INTELIGENTE ---
+# Estilo CSS para recuperar la elegancia del V25
+st.markdown("""
+<style>
+    .big-font { font-size: 20px !important; font-weight: bold; }
+    .metric-card {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    .stButton>button {
+        width: 100%;
+        background-color: #FF4B4B;
+        color: white;
+        height: 50px;
+        font-size: 18px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- 2. GESTIÓN DE ESTADO (Para la Portada) ---
+if 'club_seleccionado' not in st.session_state:
+    st.session_state['club_seleccionado'] = None
+
+# --- 3. FUNCIONES DE DATOS (BLINDADAS) ---
 ARCHIVO = "06 Sem (tst).xlsx"
 
 @st.cache_data(ttl=60)
-def get_data(hoja):
+def cargar_datos(nombre_hoja):
     if not os.path.exists(ARCHIVO): return None
     try:
-        # Leemos con openpyxl para asegurar compatibilidad
-        df = pd.read_excel(ARCHIVO, sheet_name=hoja, engine='openpyxl')
-        df.columns = [str(c).strip() for c in df.columns] # Limpiar espacios
-        # Normalizar nombre
-        col_nom = next((c for c in df.columns if c.lower() in ['nombre','deportista','atleta']), None)
-        if col_nom: df.rename(columns={col_nom: 'Nombre'}, inplace=True)
+        df = pd.read_excel(ARCHIVO, sheet_name=nombre_hoja, engine='openpyxl')
+        df.columns = [str(c).strip() for c in df.columns]
+        # Normalizar nombre de columna principal
+        col = next((c for c in df.columns if c.lower() in ['nombre','deportista','atleta']), None)
+        if col: df.rename(columns={col: 'Nombre'}, inplace=True)
         return df
     except: return None
 
-def fmt_time(val):
-    """Convierte float de Excel a texto legible"""
-    if pd.isna(val) or val == 0: return "0h 0m"
+def fmt_tiempo(val_excel):
+    """Convierte 0.5 -> 12h 00m"""
+    if pd.isna(val_excel) or val_excel == 0: return "0h 0m"
     try:
-        horas = val * 24
-        h = int(horas)
-        m = int((horas - h) * 60)
+        tot = float(val_excel) * 24
+        h = int(tot)
+        m = int((tot - h) * 60)
         return f"{h}h {m}m"
     except: return "0h 0m"
 
-# --- 2. INTERFAZ ---
-with st.sidebar:
-    if os.path.exists("logo_athlos.png"): st.image("logo_athlos.png")
-    else: st.header("ATHLOS 360")
-    
-    st.header("Club: TYM Triathlon")
-    
-    # Cargar base para lista de nombres
-    df_base = get_data("Distancia Total")
-    if df_base is None:
-        st.error("⚠️ Esperando datos...")
-        st.stop()
+# --- 4. PORTADA (RECEPCIÓN) ---
+if st.session_state['club_seleccionado'] is None:
+    c1, c2, c3 = st.columns([1,2,1])
+    with c2:
+        if os.path.exists("logo_athlos.png"):
+            st.image("logo_athlos.png", use_container_width=True)
+        else:
+            st.title("🦅 ATHLOS 360")
         
-    nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan', '0', 'none']])
-    nombres.insert(0, "🏠 Ver Resumen del Club")
-    atleta = st.selectbox("Selecciona Atleta:", nombres)
+        st.markdown("<h3 style='text-align: center;'>Plataforma de Alto Rendimiento</h3>", unsafe_allow_html=True)
+        st.markdown("---")
+        
+        club = st.selectbox("Selecciona tu Club para ingresar:", ["Seleccionar...", "TYM Triathlon", "Demo Team"])
+        
+        if club == "TYM Triathlon":
+            if st.button("INGRESAR AL DASHBOARD 🚀"):
+                st.session_state['club_seleccionado'] = club
+                st.rerun()
+        elif club == "Demo Team":
+            st.warning("Acceso restringido.")
 
-# --- 3. DASHBOARD ---
-if atleta == "🏠 Ver Resumen del Club":
-    st.title("🦅 Resumen Semanal del Club")
-    
-    # KPIs Club
-    cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
-    if cols_sem:
-        ultima = cols_sem[-1]
-        df_base[ultima] = pd.to_numeric(df_base[ultima], errors='coerce').fillna(0)
-        
-        total = df_base[ultima].sum()
-        top = df_base.nlargest(1, ultima).iloc[0]
-        
-        c1, c2 = st.columns(2)
-        c1.metric("Km Totales (Club)", f"{total:,.0f} km")
-        c2.metric("Mayor Distancia", f"{top['Nombre']} ({top[ultima]:.1f} km)")
-        
-        st.subheader(f"🏆 Top 10 - {ultima}")
-        st.table(df_base.nlargest(10, ultima)[['Nombre', ultima]])
-    else:
-        st.info("No hay datos de semanas aún.")
-
+# --- 5. DASHBOARD PRINCIPAL (SOLO SI HAY CLUB) ---
 else:
-    st.title(f"📊 {atleta}")
-    
-    # Cargar Hojas Clave (Nombres corregidos y verificados)
-    df_t = get_data("Tiempo Total")
-    df_n = get_data("Nat Distancia")
-    df_b = get_data("Ciclismo Distancia")
-    df_r = get_data("Trote Distancia")
-    
-    cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
-    ultima = cols_sem[-1] if cols_sem else "N/A"
-    
-    # --- TARJETAS ---
-    c1, c2, c3 = st.columns(3)
-    
-    # 1. Distancia
-    row = df_base[df_base['Nombre']==atleta]
-    val_d = row[ultima].values[0] if not row.empty else 0
-    c1.metric("Distancia Total", f"{float(val_d):.1f} km")
-    
-    # 2. Tiempo
-    val_t_txt = "0h 0m"
-    if df_t is not None:
-        row_t = df_t[df_t['Nombre']==atleta]
-        if not row_t.empty:
-            val_t = row_t[ultima].values[0]
-            val_t_txt = fmt_time(val_t)
-    c2.metric("Tiempo Total", val_t_txt)
-    
-    # 3. Disciplina Top
-    vals = {'Nat':0, 'Bici':0, 'Trote':0}
-    if df_n is not None and not df_n[df_n['Nombre']==atleta].empty: vals['Nat'] = df_n[df_n['Nombre']==atleta][ultima].values[0]
-    if df_b is not None and not df_b[df_b['Nombre']==atleta].empty: vals['Bici'] = df_b[df_b['Nombre']==atleta][ultima].values[0]
-    if df_r is not None and not df_r[df_r['Nombre']==atleta].empty: vals['Trote'] = df_r[df_r['Nombre']==atleta][ultima].values[0]
-    
-    top_disc = max(vals, key=vals.get)
-    c3.metric("Enfoque", top_disc, f"{vals[top_disc]:.1f} km")
-    
-    st.markdown("---")
-    
-    # --- GRÁFICOS HISTÓRICOS ---
-    t1, t2, t3 = st.tabs(["🏊‍♂️ Natación", "🚴‍♂️ Ciclismo", "🏃‍♂️ Trote"])
-    
-    def graficar(df_in, color, titulo):
-        if df_in is None: return
-        r = df_in[df_in['Nombre']==atleta]
-        if r.empty: 
-            st.warning("Sin datos")
-            return
+    # Habilitar barra lateral ahora sí
+    with st.sidebar:
+        if os.path.exists("logo_athlos.png"): st.image("logo_athlos.png")
+        st.header(f"📍 {st.session_state['club_seleccionado']}")
+        
+        if st.button("🏠 Cambiar Club"):
+            st.session_state['club_seleccionado'] = None
+            st.rerun()
+        
+        st.markdown("---")
+        
+        # Cargar Base
+        df_dist = cargar_datos("Distancia Total")
+        if df_dist is None:
+            st.error("⚠️ Error cargando datos.")
+            st.stop()
             
-        # Extraer historia
-        y = []
-        x = []
-        for c in cols_sem:
-            val = pd.to_numeric(r[c].values[0], errors='coerce')
-            y.append(val if pd.notnull(val) else 0)
-            x.append(c)
-            
-        fig = px.area(x=x, y=y, title=titulo)
-        fig.update_traces(line_color=color)
-        st.plotly_chart(fig, use_container_width=True)
+        # Selector Atleta
+        lista_atletas = sorted([str(x) for x in df_dist['Nombre'].unique() if str(x).lower() not in ['nan','0']])
+        lista_atletas.insert(0, "📊 Visión General del Club")
+        
+        atleta = st.selectbox("Selecciona Atleta:", lista_atletas)
 
-    with t1: graficar(df_n, "#00a8e8", "Histórico Natación")
-    with t2: graficar(df_b, "#e85d04", "Histórico Ciclismo")
-    with t3: graficar(df_r, "#d90429", "Histórico Trote")
+    # --- LÓGICA DE VISTAS ---
+    
+    # A. VISTA DE CLUB
+    if atleta == "📊 Visión General del Club":
+        st.title("🦅 Resumen del Equipo")
+        
+        cols_sem = [c for c in df_dist.columns if c.startswith("Sem")]
+        if cols_sem:
+            ultima = cols_sem[-1]
+            # Convertir a numérico seguro
+            df_dist[ultima] = pd.to_numeric(df_dist[ultima], errors='coerce').fillna(0)
+            
+            # KPIs Club
+            total_km = df_dist[ultima].sum()
+            prom_km = df_dist[ultima].mean()
+            
+            k1, k2 = st.columns(2)
+            k1.metric("Volumen Total del Equipo", f"{total_km:,.0f} km")
+            k2.metric("Promedio por Atleta", f"{prom_km:.1f} km")
+            
+            st.subheader(f"🏆 Top 10 Distancia ({ultima})")
+            top10 = df_dist.nlargest(10, ultima)[['Nombre', ultima]].set_index('Nombre')
+            st.bar_chart(top10)
+        else:
+            st.info("No hay datos históricos disponibles.")
+
+    # B. VISTA DE ATLETA (RECONSTRUCCIÓN REPORTE V25)
+    else:
+        st.title(f"👤 {atleta}")
+        
+        # Cargar resto de datos
+        df_tiempo = cargar_datos("Tiempo Total")
+        df_nat = cargar_datos("Nat Distancia")
+        df_bici = cargar_datos("Ciclismo Distancia")
+        df_run = cargar_datos("Trote Distancia")
+        df_alt = cargar_datos("Altimetría Total") # Recuperamos altimetría
+        
+        # Identificar semana
+        cols_sem = [c for c in df_dist.columns if c.startswith("Sem")]
+        ultima_sem = cols_sem[-1] if cols_sem else "N/A"
+        
+        # --- CÁLCULOS V25 (VS EQUIPO, VS HISTÓRICO) ---
+        
+        # 1. Distancia
+        row_d = df_dist[df_dist['Nombre']==atleta]
+        val_d = pd.to_numeric(row_d[ultima_sem].values[0], errors='coerce') if not row_d.empty else 0
+        avg_club_d = df_dist[ultima_sem].mean()
+        # Histórico personal (promedio de todas las semanas)
+        hist_d = row_d[cols_sem].mean(axis=1).values[0] if not row_d.empty else 0
+        
+        # 2. Tiempo
+        val_t = 0
+        txt_t = "0h 0m"
+        if df_tiempo is not None:
+            row_t = df_tiempo[df_tiempo['Nombre']==atleta]
+            if not row_t.empty:
+                val_t = pd.to_numeric(row_t[ultima_sem].values[0], errors='coerce')
+                txt_t = fmt_tiempo(val_t)
+        
+        # 3. Altimetría
+        val_alt = 0
+        if df_alt is not None:
+            row_a = df_alt[df_alt['Nombre']==atleta]
+            if not row_a.empty:
+                val_alt = pd.to_numeric(row_a[ultima_sem].values[0], errors='coerce')
+
+        # --- TARJETAS PRINCIPALES ---
+        st.markdown(f"### 📅 Reporte Semanal: {ultima_sem}")
+        
+        c1, c2, c3 = st.columns(3)
+        
+        c1.metric("⏱️ Tiempo Total", txt_t)
+        c2.metric("📏 Distancia Total", f"{val_d:.1f} km", delta=f"{val_d - avg_club_d:.1f} vs Club")
+        c3.metric("⛰️ Altimetría", f"{val_alt:.0f} m")
+        
+        st.info(f"📊 **Análisis V25:** Tu promedio histórico es **{hist_d:.1f} km/sem**. Estás {'por encima' if val_d > hist_d else 'por debajo'} de tu media anual.")
+        
+        st.markdown("---")
+        
+        # --- DESGLOSE POR DISCIPLINA (TABLAS Y GRÁFICOS) ---
+        t1, t2, t3 = st.tabs(["🏊‍♂️ Natación", "🚴‍♂️ Ciclismo", "🏃‍♂️ Trote"])
+        
+        def render_discipline(df_disc, titulo, color, icono):
+            if df_disc is None: return
+            row = df_disc[df_disc['Nombre']==atleta]
+            if row.empty:
+                st.warning("Sin datos")
+                return
+            
+            # Datos actuales
+            val_now = pd.to_numeric(row[ultima_sem].values[0], errors='coerce')
+            avg_club = pd.to_numeric(df_disc[ultima_sem], errors='coerce').mean()
+            
+            # Historial para gráfico
+            y_vals = []
+            for c in cols_sem:
+                v = pd.to_numeric(row[c].values[0], errors='coerce')
+                y_vals.append(v if pd.notnull(v) else 0)
+                
+            col_a, col_b = st.columns([1, 2])
+            
+            with col_a:
+                st.metric(f"{icono} Distancia {titulo}", f"{val_now:.1f} km", delta=f"{val_now - avg_club:.1f} vs Club")
+                st.write(f"**Promedio Club:** {avg_club:.1f} km")
+                
+            with col_b:
+                fig = px.area(x=cols_sem, y=y_vals, title=f"Evolución {titulo}")
+                fig.update_traces(line_color=color)
+                st.plotly_chart(fig, use_container_width=True)
+
+        with t1: render_discipline(df_nat, "Natación", "#00a8e8", "🏊")
+        with t2: render_discipline(df_bici, "Ciclismo", "#e85d04", "🚴")
+        with t3: render_discipline(df_run, "Trote", "#d90429", "🏃")
+        
+        # --- INSIGHT FINAL (RECUPERADO DEL REPORTE V25) ---
+        st.markdown("---")
+        st.success("💡 **Insight:** La consistencia es el camino al éxito. Mantén el foco en tus objetivos a largo plazo.")

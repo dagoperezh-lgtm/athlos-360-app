@@ -43,7 +43,7 @@ if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'h
 
 # --- 📌 DEFINICIÓN DE ARCHIVOS DE IMAGEN ---
 LOGO_ATHLOS = "logo_athlos.png"
-LOGO_TYM    = "Tym Logo.jpg"
+LOGO_TYM    = "Tym Logo.png"
 
 # --- 1. PORTADA GLOBAL ---
 if st.session_state['club_activo'] is None:

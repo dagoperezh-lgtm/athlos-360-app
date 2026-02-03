@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V20.0 (AJUSTE VISUAL LOGOS + SIN EMOJI LEÓN)
+# 🦅 ATHLOS 360 - V21.0 (SELECTOR ARRIBA DE LOGOS EN FICHA)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -41,26 +41,37 @@ st.markdown("""
 if 'club_activo' not in st.session_state: st.session_state['club_activo'] = None
 if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'home'
 
-# --- 📌 DEFINICIÓN DE ARCHIVOS DE IMAGEN ---
+# --- 📌 IMÁGENES ---
 LOGO_ATHLOS = "logo_athlos.png"
-LOGO_TYM    = "Tym Logo.png"
+LOGO_TYM    = "Tym Logo.jpg"
+
+# --- HELPER: RENDERIZADOR DE LOGOS SIDEBAR ---
+def render_logos_sidebar():
+    """Dibuja los logos en el sidebar. Usar para controlar posición."""
+    if os.path.exists(LOGO_ATHLOS): 
+        st.sidebar.image(LOGO_ATHLOS, use_container_width=True)
+    
+    if st.session_state['club_activo'] == "TYM Triathlon":
+        st.sidebar.markdown("---")
+        if os.path.exists(LOGO_TYM):
+            # Logo TYM centrado y reducido [1, 2, 1]
+            c1,c2,c3 = st.sidebar.columns([1,2,1])
+            with c2: st.image(LOGO_TYM, use_container_width=True)
+        st.sidebar.markdown("<h3 style='text-align: center; color: #003366;'>TYM Triathlon</h3>", unsafe_allow_html=True)
+    st.sidebar.markdown("---")
 
 # --- 1. PORTADA GLOBAL ---
 if st.session_state['club_activo'] is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        # LOGO ATHLOS
-        if os.path.exists(LOGO_ATHLOS): 
-            st.image(LOGO_ATHLOS, use_container_width=True)
-        else: 
-            st.markdown("<div class='cover-title'>ATHLOS 360</div>", unsafe_allow_html=True)
+        if os.path.exists(LOGO_ATHLOS): st.image(LOGO_ATHLOS, use_container_width=True)
+        else: st.markdown("<div class='cover-title'>ATHLOS 360</div>", unsafe_allow_html=True)
         
         st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
         
         club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
         
         if club_sel == "TYM Triathlon":
-            # LOGO CLUB
             if os.path.exists(LOGO_TYM):
                 cc1, cc2, cc3 = st.columns([1,1,1])
                 with cc2: st.image(LOGO_TYM, use_container_width=True)
@@ -73,7 +84,7 @@ if st.session_state['club_activo'] is None:
                 st.rerun()
     st.stop()
 
-# --- 2. MOTOR DE DATOS (SAFE MODE - INTACTO) ---
+# --- 2. MOTOR DE DATOS ---
 ARCHIVO = "06 Sem (tst).xlsx"
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -135,19 +146,8 @@ with st.spinner("Cargando datos..."):
     data = {
         'Global': {'T': get_df_safe("Tiempo Total"), 'D': get_df_safe("Distancia Total"), 'A': get_df_safe("Altimetría Total")},
         'Nat': {'T': get_df_safe("Nat Tiempo") or get_df_safe("Natación"), 'D': get_df_safe("Nat Distancia"), 'R': get_df_safe("Nat Ritmo")},
-        'Bici': {
-            'T': get_df_safe("Ciclismo Tiempo") or get_df_safe("Ciclismo"), 
-            'D': get_df_safe("Ciclismo Distancia"), 
-            'E': get_df_safe("Ciclismo Desnivel"),
-            'Max': get_df_safe("Ciclismo Max")
-        },
-        'Trote': {
-            'T': get_df_safe("Trote Tiempo") or get_df_safe("Trote"), 
-            'D': get_df_safe("Trote Distancia"), 
-            'R': get_df_safe("Trote Ritmo"), 
-            'E': get_df_safe("Trote Desnivel"),
-            'Max': get_df_safe("Trote Max")
-        }
+        'Bici': {'T': get_df_safe("Ciclismo Tiempo") or get_df_safe("Ciclismo"), 'D': get_df_safe("Ciclismo Distancia"), 'E': get_df_safe("Ciclismo Desnivel"), 'Max': get_df_safe("Ciclismo Max")},
+        'Trote': {'T': get_df_safe("Trote Tiempo") or get_df_safe("Trote"), 'D': get_df_safe("Trote Distancia"), 'R': get_df_safe("Trote Ritmo"), 'E': get_df_safe("Trote Desnivel"), 'Max': get_df_safe("Trote Max")}
     }
 
 df_base = data['Global']['D']
@@ -158,33 +158,7 @@ if df_base is None:
 cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
 ultima_sem = cols_sem[-1] if cols_sem else "N/A"
 
-# --- 3. BARRA LATERAL (LOGO TYM REDUCIDO) ---
-with st.sidebar:
-    # A. Logo Athlos (Grande/Ancho completo)
-    if os.path.exists(LOGO_ATHLOS): 
-        st.image(LOGO_ATHLOS, use_container_width=True)
-    
-    # B. Logo Club (Reducido y Centrado)
-    if st.session_state['club_activo'] == "TYM Triathlon":
-        st.markdown("---")
-        if os.path.exists(LOGO_TYM):
-            # Columnas [1,2,1] hacen que el logo ocupe solo el 50% del ancho central
-            c_izq, c_cen, c_der = st.columns([1, 2, 1]) 
-            with c_cen:
-                st.image(LOGO_TYM, use_container_width=True)
-        
-        # Texto del Club (Sin Emoji)
-        st.markdown("<h3 style='text-align: center; color: #003366;'>TYM Triathlon</h3>", unsafe_allow_html=True)
-        
-    st.markdown("---")
-    
-    if st.session_state['vista_actual'] != 'home':
-        if st.button("🏠 Cerrar Sesión"):
-            st.session_state['club_activo'] = None
-            st.session_state['vista_actual'] = 'home'
-            st.rerun()
-
-# HEADER DE NAVEGACIÓN
+# HEADER DE NAVEGACIÓN (GLOBAL)
 if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual'] != 'menu':
     if st.button("⬅️ Volver al Menú Principal"):
         st.session_state['vista_actual'] = 'menu'
@@ -193,8 +167,13 @@ if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual
 
 # --- VISTAS ---
 
-# MENÚ
+# 1. MENÚ PRINCIPAL
 if st.session_state['vista_actual'] == 'menu':
+    # Sidebar: Logos Arriba
+    render_logos_sidebar()
+    if st.sidebar.button("🏠 Cerrar Sesión"):
+        st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+
     st.markdown(f"<div class='cover-title'>Hola, Equipo {st.session_state['club_activo']}</div>", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
@@ -204,8 +183,13 @@ if st.session_state['vista_actual'] == 'menu':
         st.info("👤 **Ficha Personal**\n\nDetalle por Atleta")
         if st.button("Ver Ficha", use_container_width=True): st.session_state['vista_actual'] = 'ficha'; st.rerun()
 
-# RESUMEN (INTACTO CON TOP 10 Y ZONA COACH)
+# 2. RESUMEN EJECUTIVO
 elif st.session_state['vista_actual'] == 'resumen':
+    # Sidebar: Logos Arriba
+    render_logos_sidebar()
+    if st.sidebar.button("🏠 Cerrar Sesión"):
+        st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+
     st.markdown(f"<div class='main-title'>📊 Resumen Ejecutivo</div>", unsafe_allow_html=True)
     
     def calc_tot(df, is_t=False):
@@ -292,15 +276,25 @@ elif st.session_state['vista_actual'] == 'resumen':
         with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo (1 sesión)", False, "km")
         with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote (1 sesión)", False, "km")
 
-# FICHA PERSONAL (INTACTA V25 + TÍTULO RANKING)
+# 3. FICHA PERSONAL (SELECTOR ARRIBA, LOGOS ABAJO)
 elif st.session_state['vista_actual'] == 'ficha':
     with st.sidebar:
+        # 1. SELECTOR (PRIORIDAD ALTA)
+        st.header("👤 Buscador")
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
         nombres.insert(0, " Selecciona...")
-        sel = st.selectbox("Atleta:", nombres)
+        sel = st.selectbox("Selecciona Atleta:", nombres, key="atleta_selector")
+        st.markdown("---")
+        
+        # 2. LOGOS (PIE DE PÁGINA)
+        render_logos_sidebar()
+        
+        # 3. SALIR
+        if st.button("🏠 Cerrar Sesión"):
+            st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
 
     if sel == " Selecciona...":
-        st.info("👈 Selecciona un atleta.")
+        st.info("👈 Selecciona un atleta en el menú lateral.")
     else:
         def get_rank(df):
             if df is None or ultima_sem not in df.columns: return "-"

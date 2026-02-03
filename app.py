@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V18.0 (ZONA COACH + FICHA BLINDADA)
+# 🦅 ATHLOS 360 - V18.1 (ZONA COACH COLAPSABLE + FICHA BLINDADA)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -32,7 +32,7 @@ st.markdown("""
     .top10-table { width: 100%; border-collapse: collapse; background-color: white; border: 1px solid #ddd; }
     .top10-table td, .top10-table th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; }
     
-    /* NUEVO: ESTILO ALERTAS */
+    /* ESTILO ALERTAS */
     .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; }
     .alert-red { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
     .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
@@ -123,14 +123,14 @@ with st.spinner("Cargando datos..."):
             'T': get_df_safe("Ciclismo Tiempo") or get_df_safe("Ciclismo"), 
             'D': get_df_safe("Ciclismo Distancia"), 
             'E': get_df_safe("Ciclismo Desnivel"),
-            'Max': get_df_safe("Ciclismo Max") # NUEVO
+            'Max': get_df_safe("Ciclismo Max")
         },
         'Trote': {
             'T': get_df_safe("Trote Tiempo") or get_df_safe("Trote"), 
             'D': get_df_safe("Trote Distancia"), 
             'R': get_df_safe("Trote Ritmo"), 
             'E': get_df_safe("Trote Desnivel"),
-            'Max': get_df_safe("Trote Max") # NUEVO
+            'Max': get_df_safe("Trote Max")
         }
     }
 
@@ -198,50 +198,50 @@ elif st.session_state['vista_actual'] == 'resumen':
     with c2: top10(data['Global']['D'], "📏 Distancia", False, "km")
     with c3: top10(data['Global']['A'], "⛰️ Altimetría", False, "m")
 
-    # 3. ZONA COACH (NUEVO MÓDULO)
-    st.markdown("<div class='coach-section'><h3 style='color:#c62828;'>🧠 ZONA COACH (Alertas y Récords)</h3></div>", unsafe_allow_html=True)
+    # 3. ZONA COACH (DESPLEGABLE)
+    st.markdown("<div class='coach-section'><h3 style='color:#c62828;'>🧠 ZONA COACH</h3></div>", unsafe_allow_html=True)
     
     cc1, cc2 = st.columns([1, 2])
     
     with cc1:
-        st.markdown("**🚨 Semáforo de Desbalance**")
-        st.caption("Atletas activos que omitieron una disciplina esta semana.")
-        
-        # Lógica Alertas
-        alertas_html = ""
-        df_act = data['Global']['D']
-        if df_act is not None:
-            for _, row in df_act.iterrows():
-                nom = row['Nombre']
-                if clean_num(row[ultima_sem]) > 0: # Si está activo
-                    # Chequear Natación
-                    nat_val = 0
-                    if data['Nat']['D'] is not None:
-                        r = data['Nat']['D'][data['Nat']['D']['Nombre']==nom]
-                        if not r.empty: nat_val = clean_num(r[ultima_sem].values[0])
-                    
-                    # Chequear Bici
-                    bici_val = 0
-                    if data['Bici']['D'] is not None:
-                        r = data['Bici']['D'][data['Bici']['D']['Nombre']==nom]
-                        if not r.empty: bici_val = clean_num(r[ultima_sem].values[0])
+        # AQUI ESTA EL CAMBIO SOLICITADO: ST.EXPANDER
+        with st.expander("🚨 Ver Semáforo de Desbalance", expanded=False):
+            st.caption("Atletas activos que omitieron una disciplina esta semana.")
+            
+            alertas_html = ""
+            df_act = data['Global']['D']
+            if df_act is not None:
+                for _, row in df_act.iterrows():
+                    nom = row['Nombre']
+                    if clean_num(row[ultima_sem]) > 0: # Si está activo
+                        # Chequear Natación
+                        nat_val = 0
+                        if data['Nat']['D'] is not None:
+                            r = data['Nat']['D'][data['Nat']['D']['Nombre']==nom]
+                            if not r.empty: nat_val = clean_num(r[ultima_sem].values[0])
                         
-                    # Chequear Trote
-                    trote_val = 0
-                    if data['Trote']['D'] is not None:
-                        r = data['Trote']['D'][data['Trote']['D']['Nombre']==nom]
-                        if not r.empty: trote_val = clean_num(r[ultima_sem].values[0])
+                        # Chequear Bici
+                        bici_val = 0
+                        if data['Bici']['D'] is not None:
+                            r = data['Bici']['D'][data['Bici']['D']['Nombre']==nom]
+                            if not r.empty: bici_val = clean_num(r[ultima_sem].values[0])
+                            
+                        # Chequear Trote
+                        trote_val = 0
+                        if data['Trote']['D'] is not None:
+                            r = data['Trote']['D'][data['Trote']['D']['Nombre']==nom]
+                            if not r.empty: trote_val = clean_num(r[ultima_sem].values[0])
 
-                    missing = []
-                    if nat_val == 0: missing.append("Agua")
-                    if bici_val == 0: missing.append("Bici")
-                    if trote_val == 0: missing.append("Trote")
-                    
-                    if missing:
-                        alertas_html += f"<div class='alert-box alert-red'>{nom}: Sin {' / '.join(missing)}</div>"
-        
-        if alertas_html == "": alertas_html = "<div style='color:green;'>✅ Todos cumplieron las 3 disciplinas.</div>"
-        st.markdown(alertas_html, unsafe_allow_html=True)
+                        missing = []
+                        if nat_val == 0: missing.append("Agua")
+                        if bici_val == 0: missing.append("Bici")
+                        if trote_val == 0: missing.append("Trote")
+                        
+                        if missing:
+                            alertas_html += f"<div class='alert-box alert-red'>{nom}: Sin {' / '.join(missing)}</div>"
+            
+            if alertas_html == "": alertas_html = "<div style='color:green;'>✅ Todos cumplieron las 3 disciplinas.</div>"
+            st.markdown(alertas_html, unsafe_allow_html=True)
 
     with cc2:
         st.markdown("**🔥 El Podio de Resistencia (Sesión Más Larga)**")
@@ -249,7 +249,7 @@ elif st.session_state['vista_actual'] == 'resumen':
         with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo (1 sesión)", False, "km")
         with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote (1 sesión)", False, "km")
 
-# FICHA PERSONAL (INTACTA V25 + FIX COLOR)
+# FICHA PERSONAL
 elif st.session_state['vista_actual'] == 'ficha':
     with st.sidebar:
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])

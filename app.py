@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V17.2 (FIX CRÍTICO: MATEMÁTICAS SEGURAS EN VISUALIZACIÓN)
+# 🦅 ATHLOS 360 - V17.3 (V17.2 ESTABLE + TÍTULO RANKING RESTAURADO)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -15,8 +15,12 @@ st.markdown("""
     .cover-sub { font-size: 22px; text-align: center; color: #666; margin-bottom: 40px; }
     .main-title { font-size: 32px; font-weight: bold; color: #000; margin-bottom: 5px; }
     .sub-title { font-size: 18px; color: #666; margin-bottom: 15px; }
+    
+    /* RANKING DESTACADO */
+    .rank-section-title { font-size: 16px; font-weight: bold; color: #003366; text-transform: uppercase; margin-bottom: 8px; }
     .rank-badge-lg { background-color: #003366; color: white; padding: 10px 20px; border-radius: 10px; font-size: 22px; font-weight: bold; margin-right: 15px; display: inline-block; box-shadow: 0 3px 6px rgba(0,0,0,0.2); border-left: 5px solid #FF4B4B; }
     .rank-container { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #003366; }
+    
     .card-box { background-color: #f8f9fa; padding: 18px; border-radius: 10px; border: 1px solid #e0e0e0; border-left: 5px solid #003366; margin-bottom: 15px; }
     .stat-label { font-size: 15px; font-weight: bold; color: #555; text-transform: uppercase; }
     .stat-value { font-size: 26px; font-weight: bold; color: #000; }
@@ -210,6 +214,9 @@ elif st.session_state['vista_actual'] == 'ficha':
 
         st.markdown(f"<div class='main-title'>🦅 REPORTE 360°: {sel}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='sub-title'>Semana: {ultima_sem}</div>", unsafe_allow_html=True)
+        
+        # --- AQUÍ ESTÁ EL TÍTULO RESTAURADO ---
+        st.markdown("<div class='rank-section-title'>🏆 RANKING EN EL CLUB</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='rank-container'><span class='rank-badge-lg'>#{rd} en Distancia</span><span class='rank-badge-lg'>#{rt} en Tiempo</span></div>", unsafe_allow_html=True)
 
         def kpi(cat, k, is_t=False):
@@ -239,27 +246,22 @@ elif st.session_state['vista_actual'] == 'ficha':
             t_v, t_a, t_h = kpi(cat, 'T', True)
             d_v, d_a, d_h = kpi(cat, 'D', False)
             
-            # --- FIX: LOGICA DE COLOR SEGURA ---
-            # Pasamos NUMEROS (diferencias) para decidir color, y TEXTO solo para imprimir
+            # --- FIX SEGURO (USANDO NÚMEROS) ---
             def row(l, v, diff_eq_num, diff_eq_txt, diff_hist_num, diff_hist_txt):
                 ce = "pos" if diff_eq_num >= 0 else "neg"
                 ch = "pos" if diff_hist_num >= 0 else "neg"
-                # Si el texto es "-", mantenemos el color pero el texto es guión
                 te = diff_eq_txt if diff_eq_num != 0 else "-"
                 th = diff_hist_txt if diff_hist_num != 0 else "-"
                 return f"<tr><td><b>{l}</b></td><td>{v}</td><td class='{ce}'>{te}</td><td class='{ch}'>{th}</td></tr>"
 
             h = f"<table style='width:100%; font-size:14px;'><tr style='color:#666; border-bottom:1px solid #ddd;'><th>Métrica</th><th>Dato</th><th>Vs Eq</th><th>Vs Hist</th></tr>"
             
-            # Tiempo
             h += row("Tiempo", fmt_h_m(t_v), t_v-t_a, fmt_diff(t_v-t_a, True), t_v-t_h, fmt_diff(t_v-t_h, True))
-            # Distancia
             h += row("Distancia", f"{d_v:.1f} km", d_v-d_a, fmt_diff(d_v-d_a), d_v-d_h, fmt_diff(d_v-d_h))
 
             if xtype == 'elev': # BICI
                 e_v, e_a, e_h = kpi(cat, 'E', False)
                 h += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
-                
                 sp_v = d_v/(t_v*24) if t_v>0.001 else 0
                 sp_a = d_a/(t_a*24) if t_a>0.001 else 0
                 h += row("Velocidad", f"{sp_v:.1f} km/h", sp_v-sp_a, fmt_diff(sp_v-sp_a), 0, "-")

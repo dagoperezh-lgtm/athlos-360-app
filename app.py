@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V18.1 (ZONA COACH COLAPSABLE + FICHA BLINDADA)
+# 🦅 ATHLOS 360 - V18.3 (RESTAURACIÓN TOTAL DE TOP 10 + ZONA COACH)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -31,8 +31,6 @@ st.markdown("""
     .top10-header { background-color: #003366; color: white; padding: 10px; border-radius: 5px 5px 0 0; font-weight: bold; }
     .top10-table { width: 100%; border-collapse: collapse; background-color: white; border: 1px solid #ddd; }
     .top10-table td, .top10-table th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; }
-    
-    /* ESTILO ALERTAS */
     .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; }
     .alert-red { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
     .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
@@ -180,7 +178,7 @@ elif st.session_state['vista_actual'] == 'resumen':
     with k2: st.markdown(f"<div class='kpi-club-box'><div class='kpi-club-val'>{td:,.0f} km</div><div class='kpi-club-lbl'>Distancia Total</div></div>", unsafe_allow_html=True)
     with k3: st.markdown(f"<div class='kpi-club-box'><div class='kpi-club-val'>{act}</div><div class='kpi-club-lbl'>Activos</div></div>", unsafe_allow_html=True)
 
-    # 2. Top 10
+    # 2. Top 10 General
     def top10(df, tit, is_t=False, u=""):
         if df is None or ultima_sem not in df.columns: return
         d = df.copy()
@@ -194,40 +192,52 @@ elif st.session_state['vista_actual'] == 'resumen':
         st.markdown(h+"</table><br>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
-    with c1: top10(data['Global']['T'], "⏱️ Tiempo", True)
-    with c2: top10(data['Global']['D'], "📏 Distancia", False, "km")
-    with c3: top10(data['Global']['A'], "⛰️ Altimetría", False, "m")
+    with c1: top10(data['Global']['T'], "⏱️ Tiempo Global", True)
+    with c2: top10(data['Global']['D'], "📏 Distancia Global", False, "km")
+    with c3: top10(data['Global']['A'], "⛰️ Altimetría Global", False, "m")
 
-    # 3. ZONA COACH (DESPLEGABLE)
+    # 3. Top 10 Por Disciplina (RESTAURADO COMPLETO)
+    
+    # Natación (Distancia y Tiempo)
+    st.markdown("#### 🏊 Natación")
+    cn1, cn2 = st.columns(2)
+    with cn1: top10(data['Nat']['D'], "Distancia", False, "km")
+    with cn2: top10(data['Nat']['T'], "Tiempo", True)
+
+    # Ciclismo (Distancia, Tiempo, Altimetría)
+    st.markdown("#### 🚴 Ciclismo")
+    cb1, cb2, cb3 = st.columns(3)
+    with cb1: top10(data['Bici']['D'], "Distancia", False, "km")
+    with cb2: top10(data['Bici']['T'], "Tiempo", True)
+    with cb3: top10(data['Bici']['E'], "Altimetría", False, "m")
+
+    # Trote (Distancia, Tiempo, Altimetría)
+    st.markdown("#### 🏃 Trote")
+    ct1, ct2, ct3 = st.columns(3)
+    with ct1: top10(data['Trote']['D'], "Distancia", False, "km")
+    with ct2: top10(data['Trote']['T'], "Tiempo", True)
+    with ct3: top10(data['Trote']['E'], "Altimetría", False, "m")
+
+    # 4. ZONA COACH (AL FINAL)
     st.markdown("<div class='coach-section'><h3 style='color:#c62828;'>🧠 ZONA COACH</h3></div>", unsafe_allow_html=True)
     
     cc1, cc2 = st.columns([1, 2])
-    
     with cc1:
-        # AQUI ESTA EL CAMBIO SOLICITADO: ST.EXPANDER
         with st.expander("🚨 Ver Semáforo de Desbalance", expanded=False):
             st.caption("Atletas activos que omitieron una disciplina esta semana.")
-            
             alertas_html = ""
             df_act = data['Global']['D']
             if df_act is not None:
                 for _, row in df_act.iterrows():
                     nom = row['Nombre']
-                    if clean_num(row[ultima_sem]) > 0: # Si está activo
-                        # Chequear Natación
-                        nat_val = 0
+                    if clean_num(row[ultima_sem]) > 0: 
+                        nat_val = 0; bici_val = 0; trote_val = 0
                         if data['Nat']['D'] is not None:
                             r = data['Nat']['D'][data['Nat']['D']['Nombre']==nom]
                             if not r.empty: nat_val = clean_num(r[ultima_sem].values[0])
-                        
-                        # Chequear Bici
-                        bici_val = 0
                         if data['Bici']['D'] is not None:
                             r = data['Bici']['D'][data['Bici']['D']['Nombre']==nom]
                             if not r.empty: bici_val = clean_num(r[ultima_sem].values[0])
-                            
-                        # Chequear Trote
-                        trote_val = 0
                         if data['Trote']['D'] is not None:
                             r = data['Trote']['D'][data['Trote']['D']['Nombre']==nom]
                             if not r.empty: trote_val = clean_num(r[ultima_sem].values[0])
@@ -249,7 +259,7 @@ elif st.session_state['vista_actual'] == 'resumen':
         with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo (1 sesión)", False, "km")
         with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote (1 sesión)", False, "km")
 
-# FICHA PERSONAL
+# FICHA PERSONAL (INTACTA)
 elif st.session_state['vista_actual'] == 'ficha':
     with st.sidebar:
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])

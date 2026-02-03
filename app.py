@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V17.1 (BLINDADO Y CON FIX ALTIMETRÍA)
+# 🦅 ATHLOS 360 - V17.2 (FIX CRÍTICO: MATEMÁTICAS SEGURAS EN VISUALIZACIÓN)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -56,12 +56,9 @@ ARCHIVO = "06 Sem (tst).xlsx"
 
 @st.cache_data(ttl=60, show_spinner=False)
 def get_df_safe(nombre_hoja):
-    """Intenta cargar una hoja. Si falla, devuelve None sin romper la app."""
     if not os.path.exists(ARCHIVO): return None
     try:
-        # Lectura simple y robusta
         with pd.ExcelFile(ARCHIVO, engine='openpyxl') as xls:
-            # Buscar key
             key = next((k for k in xls.sheet_names if nombre_hoja.lower() in k.lower().replace(":","")), None)
             if key:
                 d = pd.read_excel(xls, sheet_name=key, dtype=str)
@@ -113,7 +110,6 @@ def fmt_diff(v, is_t=False):
 
 # CARGA DE DATOS
 with st.spinner("Cargando datos..."):
-    # Cargar diccionarios con manejo de errores (si una hoja falta, será None)
     data = {
         'Global': {'T': get_df_safe("Tiempo Total"), 'D': get_df_safe("Distancia Total"), 'A': get_df_safe("Altimetría Total")},
         'Nat': {'T': get_df_safe("Nat Tiempo") or get_df_safe("Natación"), 'D': get_df_safe("Nat Distancia"), 'R': get_df_safe("Nat Ritmo")},
@@ -121,7 +117,6 @@ with st.spinner("Cargando datos..."):
         'Trote': {'T': get_df_safe("Trote Tiempo") or get_df_safe("Trote"), 'D': get_df_safe("Trote Distancia"), 'R': get_df_safe("Trote Ritmo"), 'E': get_df_safe("Trote Desnivel")}
     }
 
-# CHECK CRÍTICO
 df_base = data['Global']['D']
 if df_base is None:
     st.error("⚠️ No se pudo leer el archivo de datos (Distancia Total). Por favor, regenera el Excel en Colab.")
@@ -244,29 +239,41 @@ elif st.session_state['vista_actual'] == 'ficha':
             t_v, t_a, t_h = kpi(cat, 'T', True)
             d_v, d_a, d_h = kpi(cat, 'D', False)
             
-            def row(l, v, de, dh):
-                ce = "pos" if (float(de.replace('+','').split(' ')[0]) if de!='-' else 0) >= 0 else "neg"
-                ch = "pos" if (float(dh.replace('+','').split(' ')[0]) if dh!='-' else 0) >= 0 else "neg"
-                return f"<tr><td><b>{l}</b></td><td>{v}</td><td class='{ce}'>{de}</td><td class='{ch}'>{dh}</td></tr>"
+            # --- FIX: LOGICA DE COLOR SEGURA ---
+            # Pasamos NUMEROS (diferencias) para decidir color, y TEXTO solo para imprimir
+            def row(l, v, diff_eq_num, diff_eq_txt, diff_hist_num, diff_hist_txt):
+                ce = "pos" if diff_eq_num >= 0 else "neg"
+                ch = "pos" if diff_hist_num >= 0 else "neg"
+                # Si el texto es "-", mantenemos el color pero el texto es guión
+                te = diff_eq_txt if diff_eq_num != 0 else "-"
+                th = diff_hist_txt if diff_hist_num != 0 else "-"
+                return f"<tr><td><b>{l}</b></td><td>{v}</td><td class='{ce}'>{te}</td><td class='{ch}'>{th}</td></tr>"
 
             h = f"<table style='width:100%; font-size:14px;'><tr style='color:#666; border-bottom:1px solid #ddd;'><th>Métrica</th><th>Dato</th><th>Vs Eq</th><th>Vs Hist</th></tr>"
-            h += row("Tiempo", fmt_h_m(t_v), fmt_diff(t_v-t_a, True), fmt_diff(t_v-t_h, True))
-            h += row("Distancia", f"{d_v:.1f} km", fmt_diff(d_v-d_a), fmt_diff(d_v-d_h))
+            
+            # Tiempo
+            h += row("Tiempo", fmt_h_m(t_v), t_v-t_a, fmt_diff(t_v-t_a, True), t_v-t_h, fmt_diff(t_v-t_h, True))
+            # Distancia
+            h += row("Distancia", f"{d_v:.1f} km", d_v-d_a, fmt_diff(d_v-d_a), d_v-d_h, fmt_diff(d_v-d_h))
 
             if xtype == 'elev': # BICI
                 e_v, e_a, e_h = kpi(cat, 'E', False)
                 h += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
+                
                 sp_v = d_v/(t_v*24) if t_v>0.001 else 0
                 sp_a = d_a/(t_a*24) if t_a>0.001 else 0
-                h += row("Velocidad", f"{sp_v:.1f} km/h", fmt_diff(sp_v-sp_a), "-")
+                h += row("Velocidad", f"{sp_v:.1f} km/h", sp_v-sp_a, fmt_diff(sp_v-sp_a), 0, "-")
+                
             elif xtype == 'run': # TROTE
                 r_v, r_a, r_h = kpi(cat, 'R', True)
                 h += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(r_v, 'run')}</td><td>-</td><td>-</td></tr>"
-                e_v, e_a, e_h = kpi(cat, 'E', False) # Desnivel Trote
+                e_v, e_a, e_h = kpi(cat, 'E', False)
                 if e_v > 0: h += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
-            else:
+                
+            else: # NATACION
                 r_v, r_a, r_h = kpi(cat, 'R', True)
                 h += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(r_v, 'swim')}</td><td>-</td><td>-</td></tr>"
+                
             st.markdown(h+"</table>", unsafe_allow_html=True)
 
         c1, c2, c3 = st.columns(3)

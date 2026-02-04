@@ -1,7 +1,8 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V26.2 (PDF CON MEMBRETE: LOGOS EN CABECERA DE IMPRESIÓN)
+# 🦅 ATHLOS 360 - V26.3 (BOTÓN DE IMPRESIÓN + MEMBRETE)
 # =============================================================================
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import os
 import base64
@@ -24,7 +25,7 @@ LOGO_TYM_FILE    = "Tym Logo.jpg"
 b64_athlos = img_to_bytes(LOGO_ATHLOS_FILE)
 b64_tym    = img_to_bytes(LOGO_TYM_FILE)
 
-# --- ESTILOS CSS (LÓGICA DE PANTALLA VS IMPRESIÓN) ---
+# --- ESTILOS CSS (PANTALLA + IMPRESIÓN) ---
 st.markdown(f"""
 <style>
     /* --- 1. ESTILOS PANTALLA (SCREEN) --- */
@@ -34,11 +35,9 @@ st.markdown(f"""
     .sub-title {{ font-size: 18px; margin-bottom: 15px; opacity: 0.8; }}
     
     /* El encabezado de impresión está OCULTO en la pantalla */
-    .print-only-header {{
-        display: none;
-    }}
+    .print-only-header {{ display: none; }}
 
-    /* Estilos de Tarjetas y Tablas (Igual que V26.1) */
+    /* Estilos de Tarjetas y Tablas */
     .card-box {{ background-color: #f8f9fa !important; padding: 18px; border-radius: 10px; border: 1px solid #e0e0e0; border-left: 5px solid #003366; margin-bottom: 15px; }}
     .kpi-club-box {{ background-color: #eef !important; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }}
     .stat-label {{ font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }}
@@ -60,8 +59,8 @@ st.markdown(f"""
 
     /* --- 2. ESTILOS DE IMPRESIÓN (PDF) --- */
     @media print {{
-        /* Ocultar elementos de navegación */
-        [data-testid="stSidebar"], header, footer, .stButton, button, .stSelectbox {{
+        /* Ocultar elementos de navegación y el IFRAME del botón de imprimir */
+        [data-testid="stSidebar"], header, footer, .stButton, button, .stSelectbox, iframe {{
             display: none !important;
         }}
         
@@ -83,17 +82,8 @@ st.markdown(f"""
             width: 100%;
         }}
         
-        .logo-print {{
-            max-height: 80px;
-            width: auto;
-        }}
-        
-        .print-title {{
-            text-align: right;
-            font-size: 24px;
-            font-weight: bold;
-            color: #003366;
-        }}
+        .logo-print {{ max-height: 80px; width: auto; }}
+        .print-title {{ text-align: right; font-size: 24px; font-weight: bold; color: #003366; }}
         
         /* Forzar colores */
         .card-box, .kpi-club-box, .top10-table, .rank-badge-lg {{
@@ -112,7 +102,6 @@ if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'h
 def render_pdf_header(titulo="REPORTE DE RENDIMIENTO"):
     """Inserta el HTML invisible que solo aparece al imprimir."""
     logo_club_html = ""
-    # Lógica Multiclub simple (Por ahora solo TYM)
     if st.session_state['club_activo'] == "TYM Triathlon" and b64_tym:
         logo_club_html = f'<img src="data:image/png;base64,{b64_tym}" class="logo-print">'
     
@@ -130,10 +119,40 @@ def render_pdf_header(titulo="REPORTE DE RENDIMIENTO"):
     </div>
     """, unsafe_allow_html=True)
 
+# --- HELPER: BOTÓN DE IMPRESIÓN (JS INYECTADO) ---
+def boton_imprimir_pdf():
+    # Este HTML crea un botón que invoca directamente la función de impresión del navegador
+    btn_html = """
+    <div style="text-align: center; margin: 20px 0;">
+        <button onclick="window.print()" style="
+            background-color: #003366; 
+            color: white; 
+            padding: 12px 24px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: bold; 
+            width: 100%; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: background 0.3s;">
+            🖨️ DESCARGAR PDF
+        </button>
+    </div>
+    """
+    components.html(btn_html, height=80)
+
 # --- HELPER SIDEBAR ---
-def render_logos_sidebar():
+def render_logos_sidebar(mostrar_boton_pdf=False):
+    """Renderiza logos y opcionalmente el botón de imprimir."""
     if os.path.exists(LOGO_ATHLOS_FILE): 
         st.sidebar.image(LOGO_ATHLOS_FILE, use_container_width=True)
+    
+    if mostrar_boton_pdf:
+        st.sidebar.markdown("---")
+        with st.sidebar:
+            boton_imprimir_pdf() # INYECTA EL BOTÓN AQUÍ
+            
     if st.session_state['club_activo'] == "TYM Triathlon":
         st.sidebar.markdown("---")
         if os.path.exists(LOGO_TYM_FILE):
@@ -248,7 +267,7 @@ if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual
 
 # 1. MENÚ
 if st.session_state['vista_actual'] == 'menu':
-    render_logos_sidebar()
+    render_logos_sidebar(mostrar_boton_pdf=False)
     if st.sidebar.button("🏠 Cerrar Sesión"):
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
 
@@ -263,10 +282,10 @@ if st.session_state['vista_actual'] == 'menu':
 
 # 2. RESUMEN
 elif st.session_state['vista_actual'] == 'resumen':
-    # RENDER HEADER PDF (INVISIBLE EN PANTALLA)
     render_pdf_header("RESUMEN SEMANAL - CLUB")
+    # AQUI: Pasamos True para que el botón aparezca en el Sidebar
+    render_logos_sidebar(mostrar_boton_pdf=True) 
     
-    render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
 
@@ -360,9 +379,7 @@ elif st.session_state['vista_actual'] == 'resumen':
 
 # 3. FICHA PERSONAL
 elif st.session_state['vista_actual'] == 'ficha':
-    # RENDER HEADER PDF (INVISIBLE EN PANTALLA)
     render_pdf_header("FICHA PERSONAL DEL ATLETA")
-
     st.markdown(f"<div class='main-title'>🦅 REPORTE 360°</div>", unsafe_allow_html=True)
     
     with st.container():
@@ -371,7 +388,9 @@ elif st.session_state['vista_actual'] == 'ficha':
         nombres.insert(0, " Selecciona...")
         sel = st.selectbox("Atleta:", nombres, key="atleta_selector", label_visibility="collapsed")
     
-    render_logos_sidebar()
+    # AQUI: Botón PDF en Sidebar
+    render_logos_sidebar(mostrar_boton_pdf=True)
+    
     if st.sidebar.button("🏠 Cerrar Sesión"):
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
 

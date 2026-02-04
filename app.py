@@ -1,83 +1,106 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V26.0 (FIX CONTRASTE MODO NOCTURNO: TÍTULOS ADAPTABLES)
+# 🦅 ATHLOS 360 - V26.2 (PDF CON MEMBRETE: LOGOS EN CABECERA DE IMPRESIÓN)
 # =============================================================================
 import streamlit as st
 import pandas as pd
 import os
+import base64
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 
-# ESTILOS CSS (LÓGICA HÍBRIDA CORREGIDA)
-st.markdown("""
+# --- FUNCIONES AUXILIARES (IMÁGENES) ---
+def img_to_bytes(img_path):
+    """Convierte una imagen a base64 para incrustarla en HTML."""
+    if not os.path.exists(img_path): return ""
+    with open(img_path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+# Rutas de Imágenes
+LOGO_ATHLOS_FILE = "logo_athlos.png"
+LOGO_TYM_FILE    = "Tym Logo.jpg"
+
+# Pre-cargamos Base64 para el PDF
+b64_athlos = img_to_bytes(LOGO_ATHLOS_FILE)
+b64_tym    = img_to_bytes(LOGO_TYM_FILE)
+
+# --- ESTILOS CSS (LÓGICA DE PANTALLA VS IMPRESIÓN) ---
+st.markdown(f"""
 <style>
-    /* 1. TÍTULOS Y TEXTOS GENERALES (ADAPTABLES)
-       Eliminamos el color forzado. Streamlit pondrá Blanco en Modo Noche y Negro en Modo Día. */
-    .cover-title { font-size: 45px; font-weight: bold; text-align: center; margin-top: 10px; }
-    .cover-sub { font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }
-    .main-title { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
-    .sub-title { font-size: 18px; margin-bottom: 15px; opacity: 0.8; }
-    .rank-section-title { font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; }
+    /* --- 1. ESTILOS PANTALLA (SCREEN) --- */
+    .cover-title {{ font-size: 45px; font-weight: bold; text-align: center; margin-top: 10px; }}
+    .cover-sub {{ font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }}
+    .main-title {{ font-size: 32px; font-weight: bold; margin-bottom: 5px; }}
+    .sub-title {{ font-size: 18px; margin-bottom: 15px; opacity: 0.8; }}
     
-    /* 2. ISLAS DE LUZ (CONTENEDORES CON FONDO BLANCO FORZADO)
-       Aquí dentro SÍ forzamos texto oscuro, porque controlamos el fondo blanco. */
-       
-    /* Tarjetas KPI y Cajas */
-    .card-box { 
-        background-color: #f8f9fa !important; 
-        padding: 18px; border-radius: 10px; 
-        border: 1px solid #e0e0e0; border-left: 5px solid #003366; 
-        margin-bottom: 15px; 
-    }
-    .kpi-club-box { 
-        background-color: #eef !important; 
-        padding: 20px; border-radius: 10px; 
-        text-align: center; margin-bottom: 20px; 
-    }
-    
-    /* Textos DENTRO de las tarjetas (Siempre Oscuros para contrastar con blanco) */
-    .stat-label { font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }
-    .stat-value { font-size: 26px; font-weight: bold; color: #000 !important; }
-    .comp-text { font-size: 14px; margin-top: 5px; color: #444 !important; }
-    
-    .kpi-club-val { font-size: 32px; font-weight: bold; color: #003366 !important; }
-    .kpi-club-lbl { font-size: 14px; color: #666 !important; font-weight: bold; text-transform: uppercase; }
-    
-    /* Badges y Headers de Tablas (Azul Institucional con Texto Blanco) */
-    .rank-badge-lg { 
-        background-color: #003366; color: white !important; padding: 10px 20px; border-radius: 10px; 
-        font-size: 22px; font-weight: bold; margin-right: 15px; display: inline-block;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.2); border-left: 5px solid #FF4B4B;
-    }
-    .top10-header { background-color: #003366 !important; color: white !important; padding: 10px; border-radius: 5px 5px 0 0; font-weight: bold; }
-    
-    /* Tablas (Fondo Blanco + Texto Negro) */
-    .top10-table { 
-        width: 100%; border-collapse: collapse; 
-        background-color: white !important; 
-        border: 1px solid #ddd; 
-    }
-    .top10-table td, .top10-table th { 
-        padding: 8px; border-bottom: 1px solid #eee; 
-        text-align: left; font-size: 14px; 
-        color: #333 !important; /* TEXTO NEGRO FORZADO EN TABLA */
-    }
-    
-    .disc-header { 
-        background-color: #E6F0FA !important; 
-        padding: 10px 15px; font-weight: bold; font-size: 18px; 
-        border-radius: 8px; margin-top: 15px; 
-        color: #003366 !important; /* Azul oscuro sobre azul claro */
-    }
-    
-    /* Semáforos */
-    .pos { color: #008000 !important; font-weight: bold; }
-    .neg { color: #B22222 !important; font-weight: bold; }
-    
-    /* Alertas */
-    .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }
-    .alert-red { background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }
-    .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
+    /* El encabezado de impresión está OCULTO en la pantalla */
+    .print-only-header {{
+        display: none;
+    }}
+
+    /* Estilos de Tarjetas y Tablas (Igual que V26.1) */
+    .card-box {{ background-color: #f8f9fa !important; padding: 18px; border-radius: 10px; border: 1px solid #e0e0e0; border-left: 5px solid #003366; margin-bottom: 15px; }}
+    .kpi-club-box {{ background-color: #eef !important; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }}
+    .stat-label {{ font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }}
+    .stat-value {{ font-size: 26px; font-weight: bold; color: #000 !important; }}
+    .comp-text {{ font-size: 14px; margin-top: 5px; color: #444 !important; }}
+    .kpi-club-val {{ font-size: 32px; font-weight: bold; color: #003366 !important; }}
+    .kpi-club-lbl {{ font-size: 14px; color: #666 !important; font-weight: bold; text-transform: uppercase; }}
+    .rank-badge-lg {{ background-color: #003366; color: white !important; padding: 10px 20px; border-radius: 10px; font-size: 22px; font-weight: bold; margin-right: 15px; display: inline-block; box-shadow: 0 3px 6px rgba(0,0,0,0.2); border-left: 5px solid #FF4B4B; }}
+    .top10-header {{ background-color: #003366 !important; color: white !important; padding: 10px; border-radius: 5px 5px 0 0; font-weight: bold; }}
+    .top10-table {{ width: 100%; border-collapse: collapse; background-color: white !important; border: 1px solid #ddd; }}
+    .top10-table td, .top10-table th {{ padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; color: #333 !important; }}
+    .disc-header {{ background-color: #E6F0FA !important; padding: 10px 15px; font-weight: bold; font-size: 18px; border-radius: 8px; margin-top: 15px; color: #003366 !important; }}
+    .rank-section-title {{ font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; }}
+    .pos {{ color: #008000 !important; font-weight: bold; }}
+    .neg {{ color: #B22222 !important; font-weight: bold; }}
+    .alert-box {{ padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }}
+    .alert-red {{ background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }}
+    .coach-section {{ margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }}
+
+    /* --- 2. ESTILOS DE IMPRESIÓN (PDF) --- */
+    @media print {{
+        /* Ocultar elementos de navegación */
+        [data-testid="stSidebar"], header, footer, .stButton, button, .stSelectbox {{
+            display: none !important;
+        }}
+        
+        /* Ajustar márgenes */
+        .main .block-container {{
+            max-width: 100% !important;
+            padding: 1rem !important;
+            margin-top: 0 !important;
+        }}
+
+        /* MOSTRAR EL ENCABEZADO OCULTO */
+        .print-only-header {{
+            display: flex !important;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            width: 100%;
+        }}
+        
+        .logo-print {{
+            max-height: 80px;
+            width: auto;
+        }}
+        
+        .print-title {{
+            text-align: right;
+            font-size: 24px;
+            font-weight: bold;
+            color: #003366;
+        }}
+        
+        /* Forzar colores */
+        .card-box, .kpi-club-box, .top10-table, .rank-badge-lg {{
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }}
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -85,37 +108,54 @@ st.markdown("""
 if 'club_activo' not in st.session_state: st.session_state['club_activo'] = None
 if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'home'
 
-# --- 📌 IMÁGENES ---
-LOGO_ATHLOS = "logo_athlos.png"
-LOGO_TYM    = "Tym Logo.jpg"
+# --- HELPER: RENDERIZADOR DE HEADER PARA PDF ---
+def render_pdf_header(titulo="REPORTE DE RENDIMIENTO"):
+    """Inserta el HTML invisible que solo aparece al imprimir."""
+    logo_club_html = ""
+    # Lógica Multiclub simple (Por ahora solo TYM)
+    if st.session_state['club_activo'] == "TYM Triathlon" and b64_tym:
+        logo_club_html = f'<img src="data:image/png;base64,{b64_tym}" class="logo-print">'
+    
+    logo_athlos_html = ""
+    if b64_athlos:
+        logo_athlos_html = f'<img src="data:image/png;base64,{b64_athlos}" class="logo-print">'
+
+    st.markdown(f"""
+    <div class="print-only-header">
+        <div>{logo_athlos_html}</div>
+        <div style="text-align: right;">
+            <div class="print-title">{titulo}</div>
+            <div style="margin-top:5px;">{logo_club_html}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- HELPER SIDEBAR ---
 def render_logos_sidebar():
-    if os.path.exists(LOGO_ATHLOS): 
-        st.sidebar.image(LOGO_ATHLOS, use_container_width=True)
+    if os.path.exists(LOGO_ATHLOS_FILE): 
+        st.sidebar.image(LOGO_ATHLOS_FILE, use_container_width=True)
     if st.session_state['club_activo'] == "TYM Triathlon":
         st.sidebar.markdown("---")
-        if os.path.exists(LOGO_TYM):
-            # Ancho fijo para evitar pixelado en móvil
+        if os.path.exists(LOGO_TYM_FILE):
             c1,c2,c3 = st.sidebar.columns([1,2,1])
-            with c2: st.image(LOGO_TYM, width=150)
+            with c2: st.image(LOGO_TYM_FILE, width=150)
         st.sidebar.markdown("<h3 style='text-align: center; color: inherit;'>TYM Triathlon</h3>", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
-# --- 1. PORTADA GLOBAL ---
+# --- 1. PORTADA ---
 if st.session_state['club_activo'] is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        if os.path.exists(LOGO_ATHLOS): st.image(LOGO_ATHLOS, use_container_width=True)
+        if os.path.exists(LOGO_ATHLOS_FILE): st.image(LOGO_ATHLOS_FILE, use_container_width=True)
         else: st.markdown("<div class='cover-title'>ATHLOS 360</div>", unsafe_allow_html=True)
         
         st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
         club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
         
         if club_sel == "TYM Triathlon":
-            if os.path.exists(LOGO_TYM):
+            if os.path.exists(LOGO_TYM_FILE):
                 cc1, cc2, cc3 = st.columns([1,1,1])
-                with cc2: st.image(LOGO_TYM, width=150)
+                with cc2: st.image(LOGO_TYM_FILE, width=150)
             
             if st.button("INGRESAR 🚀", type="primary", use_container_width=True):
                 st.session_state['club_activo'] = "TYM Triathlon"
@@ -185,19 +225,8 @@ with st.spinner("Cargando datos..."):
     data = {
         'Global': {'T': get_df_safe("Tiempo Total"), 'D': get_df_safe("Distancia Total"), 'A': get_df_safe("Altimetría Total")},
         'Nat': {'T': get_df_safe("Nat Tiempo") or get_df_safe("Natación"), 'D': get_df_safe("Nat Distancia"), 'R': get_df_safe("Nat Ritmo")},
-        'Bici': {
-            'T': get_df_safe("Ciclismo Tiempo") or get_df_safe("Ciclismo"), 
-            'D': get_df_safe("Ciclismo Distancia"), 
-            'E': get_df_safe("Ciclismo Desnivel"),
-            'Max': get_df_safe("Ciclismo Max")
-        },
-        'Trote': {
-            'T': get_df_safe("Trote Tiempo") or get_df_safe("Trote"), 
-            'D': get_df_safe("Trote Distancia"), 
-            'R': get_df_safe("Trote Ritmo"), 
-            'E': get_df_safe("Trote Desnivel"),
-            'Max': get_df_safe("Trote Max")
-        }
+        'Bici': {'T': get_df_safe("Ciclismo Tiempo") or get_df_safe("Ciclismo"), 'D': get_df_safe("Ciclismo Distancia"), 'E': get_df_safe("Ciclismo Desnivel"), 'Max': get_df_safe("Ciclismo Max")},
+        'Trote': {'T': get_df_safe("Trote Tiempo") or get_df_safe("Trote"), 'D': get_df_safe("Trote Distancia"), 'R': get_df_safe("Trote Ritmo"), 'E': get_df_safe("Trote Desnivel"), 'Max': get_df_safe("Trote Max")}
     }
 
 df_base = data['Global']['D']
@@ -208,7 +237,7 @@ if df_base is None:
 cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
 ultima_sem = cols_sem[-1] if cols_sem else "N/A"
 
-# HEADER DE NAVEGACIÓN
+# HEADER
 if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual'] != 'menu':
     if st.button("⬅️ Volver al Menú Principal"):
         st.session_state['vista_actual'] = 'menu'
@@ -234,13 +263,15 @@ if st.session_state['vista_actual'] == 'menu':
 
 # 2. RESUMEN
 elif st.session_state['vista_actual'] == 'resumen':
+    # RENDER HEADER PDF (INVISIBLE EN PANTALLA)
+    render_pdf_header("RESUMEN SEMANAL - CLUB")
+    
     render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
 
     st.markdown(f"<div class='main-title'>📊 Resumen Ejecutivo</div>", unsafe_allow_html=True)
     
-    # KPIs Club
     def calc_tot(df, is_t=False):
         if df is None or ultima_sem not in df.columns: return 0
         return sum([clean_time(x) if is_t else clean_num(x) for x in df[ultima_sem]])
@@ -274,19 +305,15 @@ elif st.session_state['vista_actual'] == 'resumen':
     with c3: top10(data['Global']['A'], "⛰️ Altimetría Total General", False, "m")
 
     st.markdown("#### Desglose por Disciplina")
-    
-    # NATACION
     c1, c2 = st.columns(2)
     with c1: top10(data['Nat']['D'], "🏊 Distancia Natación", False, "km")
     with c2: top10(data['Nat']['T'], "🏊 Tiempo Natación", True)
 
-    # CICLISMO
     c1, c2, c3 = st.columns(3)
     with c1: top10(data['Bici']['D'], "🚴 Distancia Ciclismo", False, "km")
     with c2: top10(data['Bici']['T'], "🚴 Tiempo Ciclismo", True)
     with c3: top10(data['Bici']['E'], "🚴 Altimetría Ciclismo", False, "m")
 
-    # TROTE
     c1, c2, c3 = st.columns(3)
     with c1: top10(data['Trote']['D'], "🏃 Distancia Trote", False, "km")
     with c2: top10(data['Trote']['T'], "🏃 Tiempo Trote", True)
@@ -331,19 +358,19 @@ elif st.session_state['vista_actual'] == 'resumen':
         with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo (1 sesión)", False, "km")
         with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote (1 sesión)", False, "km")
 
-# 3. FICHA PERSONAL (SELECTOR ARRIBA + SIDEBAR LIMPIO)
+# 3. FICHA PERSONAL
 elif st.session_state['vista_actual'] == 'ficha':
-    
+    # RENDER HEADER PDF (INVISIBLE EN PANTALLA)
+    render_pdf_header("FICHA PERSONAL DEL ATLETA")
+
     st.markdown(f"<div class='main-title'>🦅 REPORTE 360°</div>", unsafe_allow_html=True)
     
-    # SELECTOR EN EL CUERPO PRINCIPAL (CLAVE MÓVIL)
     with st.container():
         st.info("👇 **Busca tu nombre aquí:**")
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
         nombres.insert(0, " Selecciona...")
         sel = st.selectbox("Atleta:", nombres, key="atleta_selector", label_visibility="collapsed")
     
-    # SIDEBAR SOLO LOGOS
     render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
@@ -353,7 +380,6 @@ elif st.session_state['vista_actual'] == 'ficha':
     if sel == " Selecciona...":
         st.info("👈 Selecciona tu nombre en el buscador de arriba.")
     else:
-        # LÓGICA FICHA
         def get_rank(df):
             if df is None or ultima_sem not in df.columns: return "-"
             d = df.copy()

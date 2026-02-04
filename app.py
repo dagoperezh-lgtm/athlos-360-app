@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V26.3 (BOTÓN DE IMPRESIÓN + MEMBRETE)
+# 🦅 ATHLOS 360 - V26.4 (FIX IMPRESIÓN: TINTA NEGRA FORZADA + BOTÓN OCULTO)
 # =============================================================================
 import streamlit as st
 import streamlit.components.v1 as components
@@ -25,7 +25,7 @@ LOGO_TYM_FILE    = "Tym Logo.jpg"
 b64_athlos = img_to_bytes(LOGO_ATHLOS_FILE)
 b64_tym    = img_to_bytes(LOGO_TYM_FILE)
 
-# --- ESTILOS CSS (PANTALLA + IMPRESIÓN) ---
+# --- ESTILOS CSS (PANTALLA + IMPRESIÓN ROBUSTA) ---
 st.markdown(f"""
 <style>
     /* --- 1. ESTILOS PANTALLA (SCREEN) --- */
@@ -57,21 +57,35 @@ st.markdown(f"""
     .alert-red {{ background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }}
     .coach-section {{ margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }}
 
-    /* --- 2. ESTILOS DE IMPRESIÓN (PDF) --- */
+    /* --- 2. ESTILOS DE IMPRESIÓN (NUCLEAR FIX) --- */
     @media print {{
-        /* Ocultar elementos de navegación y el IFRAME del botón de imprimir */
-        [data-testid="stSidebar"], header, footer, .stButton, button, .stSelectbox, iframe {{
+        /* A. OCULTAR TODO LO QUE NO ES CONTENIDO */
+        [data-testid="stSidebar"], 
+        header, 
+        footer, 
+        .stButton, 
+        button, 
+        .stSelectbox, 
+        iframe,             /* Oculta iframes genéricos */
+        .stApp > header,    /* Oculta la barra de colores superior de Streamlit */
+        .block-container button /* Asegura ocultar botones dentro del bloque principal */
+        {{
             display: none !important;
         }}
         
-        /* Ajustar márgenes */
-        .main .block-container {{
-            max-width: 100% !important;
-            padding: 1rem !important;
-            margin-top: 0 !important;
+        /* B. FORZAR TINTA NEGRA Y FONDO BLANCO (Arregla el problema de hoja en blanco) */
+        body, .stApp, .main {{
+            background-color: white !important;
+            color: black !important;
+        }}
+        
+        /* Forzar que todos los textos sean negros, sobreescribiendo el modo oscuro */
+        h1, h2, h3, h4, h5, h6, p, span, div, td, th, li, a {{
+            color: black !important;
+            text-shadow: none !important;
         }}
 
-        /* MOSTRAR EL ENCABEZADO OCULTO */
+        /* C. MOSTRAR EL ENCABEZADO CON LOGOS */
         .print-only-header {{
             display: flex !important;
             justify-content: space-between;
@@ -83,12 +97,21 @@ st.markdown(f"""
         }}
         
         .logo-print {{ max-height: 80px; width: auto; }}
-        .print-title {{ text-align: right; font-size: 24px; font-weight: bold; color: #003366; }}
+        .print-title {{ text-align: right; font-size: 24px; font-weight: bold; color: #003366 !important; }}
         
-        /* Forzar colores */
-        .card-box, .kpi-club-box, .top10-table, .rank-badge-lg {{
+        /* D. MANTENER COLORES DE TARJETAS (Print Color Adjust) */
+        .card-box, .kpi-club-box, .top10-table, .rank-badge-lg, .top10-header, .disc-header, .alert-red {{
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            background-color: #f8f9fa !important; /* Forzar fondo gris claro en tarjetas */
+            border: 1px solid #ccc !important;
+        }}
+        
+        /* Ajuste de márgenes para aprovechar la hoja */
+        .main .block-container {{
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }}
     }}
 </style>
@@ -122,8 +145,9 @@ def render_pdf_header(titulo="REPORTE DE RENDIMIENTO"):
 # --- HELPER: BOTÓN DE IMPRESIÓN (JS INYECTADO) ---
 def boton_imprimir_pdf():
     # Este HTML crea un botón que invoca directamente la función de impresión del navegador
+    # Agregamos la clase "no-print" explícita por si acaso
     btn_html = """
-    <div style="text-align: center; margin: 20px 0;">
+    <div class="no-print" style="text-align: center; margin: 20px 0;">
         <button onclick="window.print()" style="
             background-color: #003366; 
             color: white; 
@@ -139,6 +163,11 @@ def boton_imprimir_pdf():
             🖨️ DESCARGAR PDF
         </button>
     </div>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+        }
+    </style>
     """
     components.html(btn_html, height=80)
 

@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V24.0 (FIX CONTEXTO MÓVIL: TÍTULOS EXPLÍCITOS + TOP 10)
+# 🦅 ATHLOS 360 - V25.1 (SELECTOR EN MAIN + TEXTOS VISIBLES + ZONA COACH)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -11,13 +11,13 @@ st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 # ESTILOS CSS (MODO NOCTURNO + MÓVIL OPTIMIZADO)
 st.markdown("""
 <style>
-    /* TÍTULOS GENERALES (Adaptables al tema) */
+    /* TÍTULOS GENERALES (Adaptables) */
     .cover-title { font-size: 45px; font-weight: bold; text-align: center; margin-top: 10px; }
     .cover-sub { font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }
     .main-title { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
     .sub-title { font-size: 18px; margin-bottom: 15px; opacity: 0.8; }
     
-    /* ISLAS DE LUZ (Fondo Blanco Forzado + Texto Oscuro) */
+    /* TARJETAS Y TABLAS (Fondo Blanco Forzado + Texto Oscuro) */
     .card-box { 
         background-color: #f8f9fa !important; 
         padding: 18px; border-radius: 10px; 
@@ -30,7 +30,7 @@ st.markdown("""
         text-align: center; margin-bottom: 20px; 
     }
     
-    /* Textos oscuros forzados dentro de contenedores blancos */
+    /* Textos oscuros forzados */
     .stat-label { font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }
     .stat-value { font-size: 26px; font-weight: bold; color: #000 !important; }
     .comp-text { font-size: 14px; margin-top: 5px; color: #444 !important; }
@@ -54,7 +54,7 @@ st.markdown("""
     .top10-table td, .top10-table th { 
         padding: 8px; border-bottom: 1px solid #eee; 
         text-align: left; font-size: 14px; 
-        color: #333 !important; 
+        color: #333 !important; /* TEXTO NEGRO FORZADO */
     }
     
     .disc-header { 
@@ -66,7 +66,7 @@ st.markdown("""
     .pos { color: #008000 !important; font-weight: bold; }
     .neg { color: #B22222 !important; font-weight: bold; }
     
-    .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; }
+    .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }
     .alert-red { background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }
     .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
 </style>
@@ -87,6 +87,7 @@ def render_logos_sidebar():
     if st.session_state['club_activo'] == "TYM Triathlon":
         st.sidebar.markdown("---")
         if os.path.exists(LOGO_TYM):
+            # Ancho fijo para evitar logo gigante en móvil
             c1,c2,c3 = st.sidebar.columns([1,2,1])
             with c2: st.image(LOGO_TYM, width=150)
         st.sidebar.markdown("<h3 style='text-align: center; color: #003366;'>TYM Triathlon</h3>", unsafe_allow_html=True)
@@ -222,7 +223,7 @@ if st.session_state['vista_actual'] == 'menu':
         st.info("👤 **Ficha Personal**\n\nDetalle por Atleta")
         if st.button("Ver Ficha", use_container_width=True): st.session_state['vista_actual'] = 'ficha'; st.rerun()
 
-# 2. RESUMEN (TITULOS EXPLÍCITOS)
+# 2. RESUMEN
 elif st.session_state['vista_actual'] == 'resumen':
     render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
@@ -230,7 +231,7 @@ elif st.session_state['vista_actual'] == 'resumen':
 
     st.markdown(f"<div class='main-title'>📊 Resumen Ejecutivo</div>", unsafe_allow_html=True)
     
-    # 1. KPIs Club
+    # KPIs Club
     def calc_tot(df, is_t=False):
         if df is None or ultima_sem not in df.columns: return 0
         return sum([clean_time(x) if is_t else clean_num(x) for x in df[ultima_sem]])
@@ -244,7 +245,6 @@ elif st.session_state['vista_actual'] == 'resumen':
     with k2: st.markdown(f"<div class='kpi-club-box'><div class='kpi-club-val'>{td:,.0f} km</div><div class='kpi-club-lbl'>Distancia Total</div></div>", unsafe_allow_html=True)
     with k3: st.markdown(f"<div class='kpi-club-box'><div class='kpi-club-val'>{act}</div><div class='kpi-club-lbl'>Activos</div></div>", unsafe_allow_html=True)
 
-    # TITULO TOP 10 (EXPLICITO)
     st.markdown("<h3 style='margin-top:20px;'>🏆 Top 10: Mejores Desempeños de la Semana</h3>", unsafe_allow_html=True)
 
     def top10(df, tit, is_t=False, u=""):
@@ -271,13 +271,13 @@ elif st.session_state['vista_actual'] == 'resumen':
     with c1: top10(data['Nat']['D'], "🏊 Distancia Natación", False, "km")
     with c2: top10(data['Nat']['T'], "🏊 Tiempo Natación", True)
 
-    # CICLISMO (3 columnas: Dist, Tiempo, Alt)
+    # CICLISMO
     c1, c2, c3 = st.columns(3)
     with c1: top10(data['Bici']['D'], "🚴 Distancia Ciclismo", False, "km")
     with c2: top10(data['Bici']['T'], "🚴 Tiempo Ciclismo", True)
     with c3: top10(data['Bici']['E'], "🚴 Altimetría Ciclismo", False, "m")
 
-    # TROTE (3 columnas: Dist, Tiempo, Alt)
+    # TROTE
     c1, c2, c3 = st.columns(3)
     with c1: top10(data['Trote']['D'], "🏃 Distancia Trote", False, "km")
     with c2: top10(data['Trote']['T'], "🏃 Tiempo Trote", True)
@@ -322,24 +322,30 @@ elif st.session_state['vista_actual'] == 'resumen':
         with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo (1 sesión)", False, "km")
         with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote (1 sesión)", False, "km")
 
-# 3. FICHA PERSONAL
+# 3. FICHA PERSONAL (SELECTOR ARRIBA + SIDEBAR LIMPIO)
 elif st.session_state['vista_actual'] == 'ficha':
-    with st.sidebar:
-        # Selector
-        st.header("👤 Buscador")
+    
+    # A. TITULO Y SELECTOR EN PANTALLA PRINCIPAL
+    st.markdown(f"<div class='main-title'>🦅 REPORTE 360°</div>", unsafe_allow_html=True)
+    
+    # Contenedor del buscador destacado
+    with st.container():
+        st.info("👇 **Busca tu nombre aquí:**")
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
         nombres.insert(0, " Selecciona...")
-        sel = st.selectbox("Selecciona Atleta:", nombres, key="atleta_selector")
-        st.markdown("---")
-        # Logos
-        render_logos_sidebar()
-        # Salir
-        if st.button("🏠 Cerrar Sesión"):
-            st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+        sel = st.selectbox("Atleta:", nombres, key="atleta_selector", label_visibility="collapsed")
+    
+    # B. SIDEBAR SOLO LOGOS
+    render_logos_sidebar()
+    if st.sidebar.button("🏠 Cerrar Sesión"):
+        st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+
+    st.markdown("---")
 
     if sel == " Selecciona...":
-        st.info("👈 Selecciona un atleta en el menú lateral.")
+        st.info("👈 Selecciona tu nombre en el buscador de arriba.")
     else:
+        # LÓGICA FICHA
         def get_rank(df):
             if df is None or ultima_sem not in df.columns: return "-"
             d = df.copy()
@@ -352,8 +358,7 @@ elif st.session_state['vista_actual'] == 'ficha':
         rd = get_rank(data['Global']['D'])
         rt = get_rank(data['Global']['T'])
 
-        st.markdown(f"<div class='main-title'>🦅 REPORTE 360°: {sel}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub-title'>Semana: {ultima_sem}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='sub-title'>Atleta: {sel} | Semana: {ultima_sem}</div>", unsafe_allow_html=True)
         st.markdown("<div class='rank-section-title'>🏆 RANKING EN EL CLUB</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='rank-container'><span class='rank-badge-lg'>#{rd} en Distancia</span><span class='rank-badge-lg'>#{rt} en Tiempo</span></div>", unsafe_allow_html=True)
 

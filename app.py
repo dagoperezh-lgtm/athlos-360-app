@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V21.1 (FIX LOGO GIGANTE EN MÓVIL)
+# 🦅 ATHLOS 360 - V22.0 (FIX MÓVIL: CONTRASTE MODO NOCTURNO + SELECTOR EN MAIN)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -8,31 +8,69 @@ import os
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 
-# ESTILOS CSS
+# ESTILOS CSS (MEJORADOS PARA MODO NOCTURNO Y MÓVIL)
 st.markdown("""
 <style>
-    .cover-title { font-size: 45px; font-weight: bold; text-align: center; color: #003366; margin-top: 10px; }
-    .cover-sub { font-size: 22px; text-align: center; color: #666; margin-bottom: 40px; }
-    .main-title { font-size: 32px; font-weight: bold; color: #000; margin-bottom: 5px; }
-    .sub-title { font-size: 18px; color: #666; margin-bottom: 15px; }
-    .rank-section-title { font-size: 16px; font-weight: bold; color: #003366; text-transform: uppercase; margin-bottom: 8px; }
-    .rank-badge-lg { background-color: #003366; color: white; padding: 10px 20px; border-radius: 10px; font-size: 22px; font-weight: bold; margin-right: 15px; display: inline-block; box-shadow: 0 3px 6px rgba(0,0,0,0.2); border-left: 5px solid #FF4B4B; }
-    .rank-container { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #003366; }
-    .card-box { background-color: #f8f9fa; padding: 18px; border-radius: 10px; border: 1px solid #e0e0e0; border-left: 5px solid #003366; margin-bottom: 15px; }
-    .stat-label { font-size: 15px; font-weight: bold; color: #555; text-transform: uppercase; }
-    .stat-value { font-size: 26px; font-weight: bold; color: #000; }
-    .comp-text { font-size: 14px; margin-top: 5px; color: #444; }
-    .pos { color: #008000; font-weight: bold; }
-    .neg { color: #B22222; font-weight: bold; }
-    .disc-header { background-color: #E6F0FA; padding: 10px 15px; font-weight: bold; font-size: 18px; border-radius: 8px; margin-top: 15px; color: #003366; }
-    .kpi-club-box { background-color: #eef; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
-    .kpi-club-val { font-size: 32px; font-weight: bold; color: #003366; }
-    .kpi-club-lbl { font-size: 14px; color: #666; font-weight: bold; text-transform: uppercase; }
-    .top10-header { background-color: #003366; color: white; padding: 10px; border-radius: 5px 5px 0 0; font-weight: bold; }
-    .top10-table { width: 100%; border-collapse: collapse; background-color: white; border: 1px solid #ddd; }
-    .top10-table td, .top10-table th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; }
+    /* FORZAR COLORES EN MODO NOCTURNO */
+    /* Asegura que el texto dentro de contenedores blancos sea SIEMPRE oscuro */
+    
+    .cover-title { font-size: 45px; font-weight: bold; text-align: center; color: #003366 !important; margin-top: 10px; }
+    .cover-sub { font-size: 22px; text-align: center; color: #666 !important; margin-bottom: 40px; }
+    .main-title { font-size: 32px; font-weight: bold; color: #000 !important; margin-bottom: 5px; }
+    .sub-title { font-size: 18px; color: #666 !important; margin-bottom: 15px; }
+    
+    .rank-section-title { font-size: 16px; font-weight: bold; color: #003366 !important; text-transform: uppercase; margin-bottom: 8px; }
+    .rank-badge-lg { 
+        background-color: #003366; color: white !important; padding: 10px 20px; border-radius: 10px; 
+        font-size: 22px; font-weight: bold; margin-right: 15px; display: inline-block;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.2); border-left: 5px solid #FF4B4B;
+    }
+    
+    /* TARJETAS KPI (Forzamos fondo claro y texto oscuro) */
+    .card-box { 
+        background-color: #f8f9fa !important; 
+        padding: 18px; border-radius: 10px; 
+        border: 1px solid #e0e0e0; border-left: 5px solid #003366; 
+        margin-bottom: 15px; 
+    }
+    .kpi-club-box { 
+        background-color: #eef !important; 
+        padding: 20px; border-radius: 10px; 
+        text-align: center; margin-bottom: 20px; 
+    }
+    
+    /* TEXTOS DENTRO DE TARJETAS (Deben ser oscuros siempre) */
+    .stat-label { font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }
+    .stat-value { font-size: 26px; font-weight: bold; color: #000 !important; }
+    .comp-text { font-size: 14px; margin-top: 5px; color: #444 !important; }
+    .kpi-club-val { font-size: 32px; font-weight: bold; color: #003366 !important; }
+    .kpi-club-lbl { font-size: 14px; color: #666 !important; font-weight: bold; text-transform: uppercase; }
+    
+    .pos { color: #008000 !important; font-weight: bold; }
+    .neg { color: #B22222 !important; font-weight: bold; }
+    
+    .disc-header { 
+        background-color: #E6F0FA !important; 
+        padding: 10px 15px; font-weight: bold; font-size: 18px; 
+        border-radius: 8px; margin-top: 15px; color: #003366 !important; 
+    }
+    
+    /* TABLAS (Forzar fondo blanco y texto negro) */
+    .top10-header { background-color: #003366 !important; color: white !important; padding: 10px; border-radius: 5px 5px 0 0; font-weight: bold; }
+    .top10-table { 
+        width: 100%; border-collapse: collapse; 
+        background-color: white !important; 
+        border: 1px solid #ddd; 
+    }
+    .top10-table td, .top10-table th { 
+        padding: 8px; border-bottom: 1px solid #eee; 
+        text-align: left; font-size: 14px; 
+        color: #333 !important; /* TEXTO NEGRO FORZADO */
+    }
+    
+    /* ALERTAS */
     .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; }
-    .alert-red { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+    .alert-red { background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }
     .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
 </style>
 """, unsafe_allow_html=True)
@@ -54,8 +92,7 @@ def render_logos_sidebar():
     if st.session_state['club_activo'] == "TYM Triathlon":
         st.sidebar.markdown("---")
         if os.path.exists(LOGO_TYM):
-            # FIX: Usamos width=150 en lugar de use_container_width
-            # Esto evita que en el celular se estire al 100% de la pantalla
+            # FIX: Usamos width=150 para que no explote en movil
             c1,c2,c3 = st.sidebar.columns([1,2,1])
             with c2: st.image(LOGO_TYM, width=150)
         st.sidebar.markdown("<h3 style='text-align: center; color: #003366;'>TYM Triathlon</h3>", unsafe_allow_html=True)
@@ -74,12 +111,9 @@ if st.session_state['club_activo'] is None:
         
         if club_sel == "TYM Triathlon":
             if os.path.exists(LOGO_TYM):
-                # En portada también aplicamos width fijo para evitar sorpresas
                 cc1, cc2, cc3 = st.columns([1,1,1])
                 with cc2: st.image(LOGO_TYM, width=150)
-            else:
-                st.warning(f"⚠️ Sube el archivo '{LOGO_TYM}'")
-
+            
             if st.button("INGRESAR 🚀", type="primary", use_container_width=True):
                 st.session_state['club_activo'] = "TYM Triathlon"
                 st.session_state['vista_actual'] = 'menu'
@@ -225,7 +259,7 @@ elif st.session_state['vista_actual'] == 'resumen':
         h = "<table class='top10-table'>"
         for i, r in enumerate(d.itertuples(), 1):
             val = fmt_h_m(r.v) if is_t else f"{r.v:.1f} {u}"
-            h += f"<tr><td style='width:30px; font-weight:bold; color:#003366;'>#{i}</td><td>{r.Nombre}</td><td style='text-align:right; font-weight:bold;'>{val}</td></tr>"
+            h += f"<tr><td style='width:30px; font-weight:bold; color:#003366;'>#{i}</td><td>{r.Nombre}</td><td style='text-align:right; font-weight:bold; color:#333 !important;'>{val}</td></tr>"
         st.markdown(h+"</table><br>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
@@ -287,26 +321,30 @@ elif st.session_state['vista_actual'] == 'resumen':
         with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo (1 sesión)", False, "km")
         with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote (1 sesión)", False, "km")
 
-# 3. FICHA PERSONAL (SELECTOR ARRIBA, LOGOS ABAJO)
+# 3. FICHA PERSONAL (SELECTOR EN PANTALLA PRINCIPAL - FIX MÓVIL)
 elif st.session_state['vista_actual'] == 'ficha':
-    with st.sidebar:
-        # 1. SELECTOR
-        st.header("👤 Buscador")
+    
+    # === AQUI ESTÁ EL CAMBIO CLAVE: SELECTOR EN EL CUERPO PRINCIPAL ===
+    st.markdown(f"<div class='main-title'>🦅 REPORTE 360°</div>", unsafe_allow_html=True)
+    
+    # Contenedor del buscador destacado
+    with st.container():
+        st.info("👇 **Busca tu nombre aquí:**")
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
         nombres.insert(0, " Selecciona...")
-        sel = st.selectbox("Selecciona Atleta:", nombres, key="atleta_selector")
-        st.markdown("---")
-        
-        # 2. LOGOS
-        render_logos_sidebar()
-        
-        # 3. SALIR
-        if st.button("🏠 Cerrar Sesión"):
-            st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+        sel = st.selectbox("Atleta:", nombres, key="atleta_selector", label_visibility="collapsed")
+    
+    # Sidebar limpio (Solo logos y salir)
+    render_logos_sidebar()
+    if st.sidebar.button("🏠 Cerrar Sesión"):
+        st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+
+    st.markdown("---")
 
     if sel == " Selecciona...":
-        st.info("👈 Selecciona un atleta en el menú lateral.")
+        st.info("👈 Selecciona tu nombre en el buscador de arriba.")
     else:
+        # LÓGICA FICHA
         def get_rank(df):
             if df is None or ultima_sem not in df.columns: return "-"
             d = df.copy()
@@ -319,8 +357,7 @@ elif st.session_state['vista_actual'] == 'ficha':
         rd = get_rank(data['Global']['D'])
         rt = get_rank(data['Global']['T'])
 
-        st.markdown(f"<div class='main-title'>🦅 REPORTE 360°: {sel}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub-title'>Semana: {ultima_sem}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='sub-title'>Atleta: {sel} | Semana: {ultima_sem}</div>", unsafe_allow_html=True)
         st.markdown("<div class='rank-section-title'>🏆 RANKING EN EL CLUB</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='rank-container'><span class='rank-badge-lg'>#{rd} en Distancia</span><span class='rank-badge-lg'>#{rt} en Tiempo</span></div>", unsafe_allow_html=True)
 

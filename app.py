@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V26.4 (FIX IMPRESIÓN: TINTA NEGRA FORZADA + BOTÓN OCULTO)
+# 🦅 ATHLOS 360 - V26.5 (SOLUCIÓN DEFINITIVA PDF EN BLANCO)
 # =============================================================================
 import streamlit as st
 import streamlit.components.v1 as components
@@ -25,19 +25,24 @@ LOGO_TYM_FILE    = "Tym Logo.jpg"
 b64_athlos = img_to_bytes(LOGO_ATHLOS_FILE)
 b64_tym    = img_to_bytes(LOGO_TYM_FILE)
 
-# --- ESTILOS CSS (PANTALLA + IMPRESIÓN ROBUSTA) ---
+# --- ESTILOS CSS ---
 st.markdown(f"""
 <style>
-    /* --- 1. ESTILOS PANTALLA (SCREEN) --- */
+    /* --- 1. ESTILOS PANTALLA (NO TOCAMOS NADA DE ESTO) --- */
+    
+    /* Usamos variables nativas para respetar el tema del usuario */
+    h1, h2, h3, .main-title, .cover-title, .sub-title {{
+        color: var(--text-color) !important;
+    }}
+
     .cover-title {{ font-size: 45px; font-weight: bold; text-align: center; margin-top: 10px; }}
     .cover-sub {{ font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }}
     .main-title {{ font-size: 32px; font-weight: bold; margin-bottom: 5px; }}
     .sub-title {{ font-size: 18px; margin-bottom: 15px; opacity: 0.8; }}
     
-    /* El encabezado de impresión está OCULTO en la pantalla */
     .print-only-header {{ display: none; }}
 
-    /* Estilos de Tarjetas y Tablas */
+    /* Tarjetas y Tablas */
     .card-box {{ background-color: #f8f9fa !important; padding: 18px; border-radius: 10px; border: 1px solid #e0e0e0; border-left: 5px solid #003366; margin-bottom: 15px; }}
     .kpi-club-box {{ background-color: #eef !important; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }}
     .stat-label {{ font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }}
@@ -50,42 +55,40 @@ st.markdown(f"""
     .top10-table {{ width: 100%; border-collapse: collapse; background-color: white !important; border: 1px solid #ddd; }}
     .top10-table td, .top10-table th {{ padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; color: #333 !important; }}
     .disc-header {{ background-color: #E6F0FA !important; padding: 10px 15px; font-weight: bold; font-size: 18px; border-radius: 8px; margin-top: 15px; color: #003366 !important; }}
-    .rank-section-title {{ font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; }}
+    .rank-section-title {{ font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; color: var(--text-color) !important; }}
     .pos {{ color: #008000 !important; font-weight: bold; }}
     .neg {{ color: #B22222 !important; font-weight: bold; }}
     .alert-box {{ padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }}
     .alert-red {{ background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }}
     .coach-section {{ margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }}
 
-    /* --- 2. ESTILOS DE IMPRESIÓN (NUCLEAR FIX) --- */
+    /* --- 2. ESTILOS DE IMPRESIÓN (EL ARREGLO) --- */
     @media print {{
-        /* A. OCULTAR TODO LO QUE NO ES CONTENIDO */
-        [data-testid="stSidebar"], 
-        header, 
-        footer, 
-        .stButton, 
-        button, 
-        .stSelectbox, 
-        iframe,             /* Oculta iframes genéricos */
-        .stApp > header,    /* Oculta la barra de colores superior de Streamlit */
-        .block-container button /* Asegura ocultar botones dentro del bloque principal */
-        {{
+        /* Ocultar interfaz de usuario */
+        [data-testid="stSidebar"], header, footer, .stButton, button, .stSelectbox, .no-print {{
             display: none !important;
         }}
         
-        /* B. FORZAR TINTA NEGRA Y FONDO BLANCO (Arregla el problema de hoja en blanco) */
-        body, .stApp, .main {{
+        /* FIX CLAVE: Romper la altura fija para que el contenido fluya en el papel */
+        html, body, .stApp {{
+            height: auto !important;
+            overflow: visible !important;
             background-color: white !important;
-            color: black !important;
         }}
         
-        /* Forzar que todos los textos sean negros, sobreescribiendo el modo oscuro */
-        h1, h2, h3, h4, h5, h6, p, span, div, td, th, li, a {{
-            color: black !important;
-            text-shadow: none !important;
+        .main .block-container {{
+            max-width: 100% !important;
+            padding: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
         }}
 
-        /* C. MOSTRAR EL ENCABEZADO CON LOGOS */
+        /* Forzar textos a negro para asegurar visibilidad en papel */
+        h1, h2, h3, h4, h5, h6, p, span, div, td, th, li {{
+            color: black !important;
+        }}
+
+        /* Mostrar encabezado */
         .print-only-header {{
             display: flex !important;
             justify-content: space-between;
@@ -96,22 +99,14 @@ st.markdown(f"""
             width: 100%;
         }}
         
-        .logo-print {{ max-height: 80px; width: auto; }}
-        .print-title {{ text-align: right; font-size: 24px; font-weight: bold; color: #003366 !important; }}
+        .logo-print {{ max-height: 60px; width: auto; }}
+        .print-title {{ text-align: right; font-size: 20px; font-weight: bold; color: #003366 !important; }}
         
-        /* D. MANTENER COLORES DE TARJETAS (Print Color Adjust) */
-        .card-box, .kpi-club-box, .top10-table, .rank-badge-lg, .top10-header, .disc-header, .alert-red {{
+        /* Mantener diseño de tarjetas */
+        .card-box, .kpi-club-box, .top10-table, .rank-badge-lg, .top10-header, .disc-header {{
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            background-color: #f8f9fa !important; /* Forzar fondo gris claro en tarjetas */
             border: 1px solid #ccc !important;
-        }}
-        
-        /* Ajuste de márgenes para aprovechar la hoja */
-        .main .block-container {{
-            max-width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
         }}
     }}
 </style>
@@ -142,10 +137,8 @@ def render_pdf_header(titulo="REPORTE DE RENDIMIENTO"):
     </div>
     """, unsafe_allow_html=True)
 
-# --- HELPER: BOTÓN DE IMPRESIÓN (JS INYECTADO) ---
+# --- HELPER: BOTÓN DE IMPRESIÓN ---
 def boton_imprimir_pdf():
-    # Este HTML crea un botón que invoca directamente la función de impresión del navegador
-    # Agregamos la clase "no-print" explícita por si acaso
     btn_html = """
     <div class="no-print" style="text-align: center; margin: 20px 0;">
         <button onclick="window.print()" style="
@@ -163,11 +156,6 @@ def boton_imprimir_pdf():
             🖨️ DESCARGAR PDF
         </button>
     </div>
-    <style>
-        @media print {
-            .no-print { display: none !important; }
-        }
-    </style>
     """
     components.html(btn_html, height=80)
 

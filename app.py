@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V25.1 (SELECTOR EN MAIN + TEXTOS VISIBLES + ZONA COACH)
+# 🦅 ATHLOS 360 - V26.0 (FIX CONTRASTE MODO NOCTURNO: TÍTULOS ADAPTABLES)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -8,16 +8,21 @@ import os
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 
-# ESTILOS CSS (MODO NOCTURNO + MÓVIL OPTIMIZADO)
+# ESTILOS CSS (LÓGICA HÍBRIDA CORREGIDA)
 st.markdown("""
 <style>
-    /* TÍTULOS GENERALES (Adaptables) */
+    /* 1. TÍTULOS Y TEXTOS GENERALES (ADAPTABLES)
+       Eliminamos el color forzado. Streamlit pondrá Blanco en Modo Noche y Negro en Modo Día. */
     .cover-title { font-size: 45px; font-weight: bold; text-align: center; margin-top: 10px; }
     .cover-sub { font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }
     .main-title { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
     .sub-title { font-size: 18px; margin-bottom: 15px; opacity: 0.8; }
+    .rank-section-title { font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; }
     
-    /* TARJETAS Y TABLAS (Fondo Blanco Forzado + Texto Oscuro) */
+    /* 2. ISLAS DE LUZ (CONTENEDORES CON FONDO BLANCO FORZADO)
+       Aquí dentro SÍ forzamos texto oscuro, porque controlamos el fondo blanco. */
+       
+    /* Tarjetas KPI y Cajas */
     .card-box { 
         background-color: #f8f9fa !important; 
         padding: 18px; border-radius: 10px; 
@@ -30,7 +35,7 @@ st.markdown("""
         text-align: center; margin-bottom: 20px; 
     }
     
-    /* Textos oscuros forzados */
+    /* Textos DENTRO de las tarjetas (Siempre Oscuros para contrastar con blanco) */
     .stat-label { font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }
     .stat-value { font-size: 26px; font-weight: bold; color: #000 !important; }
     .comp-text { font-size: 14px; margin-top: 5px; color: #444 !important; }
@@ -38,14 +43,15 @@ st.markdown("""
     .kpi-club-val { font-size: 32px; font-weight: bold; color: #003366 !important; }
     .kpi-club-lbl { font-size: 14px; color: #666 !important; font-weight: bold; text-transform: uppercase; }
     
-    .rank-section-title { font-size: 16px; font-weight: bold; color: #003366 !important; text-transform: uppercase; margin-bottom: 8px; }
+    /* Badges y Headers de Tablas (Azul Institucional con Texto Blanco) */
     .rank-badge-lg { 
         background-color: #003366; color: white !important; padding: 10px 20px; border-radius: 10px; 
         font-size: 22px; font-weight: bold; margin-right: 15px; display: inline-block;
         box-shadow: 0 3px 6px rgba(0,0,0,0.2); border-left: 5px solid #FF4B4B;
     }
-    
     .top10-header { background-color: #003366 !important; color: white !important; padding: 10px; border-radius: 5px 5px 0 0; font-weight: bold; }
+    
+    /* Tablas (Fondo Blanco + Texto Negro) */
     .top10-table { 
         width: 100%; border-collapse: collapse; 
         background-color: white !important; 
@@ -54,18 +60,21 @@ st.markdown("""
     .top10-table td, .top10-table th { 
         padding: 8px; border-bottom: 1px solid #eee; 
         text-align: left; font-size: 14px; 
-        color: #333 !important; /* TEXTO NEGRO FORZADO */
+        color: #333 !important; /* TEXTO NEGRO FORZADO EN TABLA */
     }
     
     .disc-header { 
         background-color: #E6F0FA !important; 
         padding: 10px 15px; font-weight: bold; font-size: 18px; 
-        border-radius: 8px; margin-top: 15px; color: #003366 !important; 
+        border-radius: 8px; margin-top: 15px; 
+        color: #003366 !important; /* Azul oscuro sobre azul claro */
     }
     
+    /* Semáforos */
     .pos { color: #008000 !important; font-weight: bold; }
     .neg { color: #B22222 !important; font-weight: bold; }
     
+    /* Alertas */
     .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }
     .alert-red { background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }
     .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
@@ -87,13 +96,13 @@ def render_logos_sidebar():
     if st.session_state['club_activo'] == "TYM Triathlon":
         st.sidebar.markdown("---")
         if os.path.exists(LOGO_TYM):
-            # Ancho fijo para evitar logo gigante en móvil
+            # Ancho fijo para evitar pixelado en móvil
             c1,c2,c3 = st.sidebar.columns([1,2,1])
             with c2: st.image(LOGO_TYM, width=150)
-        st.sidebar.markdown("<h3 style='text-align: center; color: #003366;'>TYM Triathlon</h3>", unsafe_allow_html=True)
+        st.sidebar.markdown("<h3 style='text-align: center; color: inherit;'>TYM Triathlon</h3>", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
-# --- 1. PORTADA ---
+# --- 1. PORTADA GLOBAL ---
 if st.session_state['club_activo'] is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
@@ -199,7 +208,7 @@ if df_base is None:
 cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
 ultima_sem = cols_sem[-1] if cols_sem else "N/A"
 
-# HEADER GLOBAL
+# HEADER DE NAVEGACIÓN
 if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual'] != 'menu':
     if st.button("⬅️ Volver al Menú Principal"):
         st.session_state['vista_actual'] = 'menu'
@@ -283,7 +292,7 @@ elif st.session_state['vista_actual'] == 'resumen':
     with c2: top10(data['Trote']['T'], "🏃 Tiempo Trote", True)
     with c3: top10(data['Trote']['E'], "🏃 Altimetría Trote", False, "m")
 
-    st.markdown("<div class='coach-section'><h3 style='color:#c62828;'>🧠 ZONA COACH</h3></div>", unsafe_allow_html=True)
+    st.markdown("<div class='coach-section'><h3 style='color:inherit;'>🧠 ZONA COACH</h3></div>", unsafe_allow_html=True)
     cc1, cc2 = st.columns([1, 2])
     with cc1:
         with st.expander("🚨 Ver Semáforo de Desbalance", expanded=False):
@@ -325,17 +334,16 @@ elif st.session_state['vista_actual'] == 'resumen':
 # 3. FICHA PERSONAL (SELECTOR ARRIBA + SIDEBAR LIMPIO)
 elif st.session_state['vista_actual'] == 'ficha':
     
-    # A. TITULO Y SELECTOR EN PANTALLA PRINCIPAL
     st.markdown(f"<div class='main-title'>🦅 REPORTE 360°</div>", unsafe_allow_html=True)
     
-    # Contenedor del buscador destacado
+    # SELECTOR EN EL CUERPO PRINCIPAL (CLAVE MÓVIL)
     with st.container():
         st.info("👇 **Busca tu nombre aquí:**")
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
         nombres.insert(0, " Selecciona...")
         sel = st.selectbox("Atleta:", nombres, key="atleta_selector", label_visibility="collapsed")
     
-    # B. SIDEBAR SOLO LOGOS
+    # SIDEBAR SOLO LOGOS
     render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()

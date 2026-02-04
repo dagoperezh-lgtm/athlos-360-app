@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V26.5 (SOLUCIÓN DEFINITIVA PDF EN BLANCO)
+# 🦅 ATHLOS 360 - V26.6 (FIX IMPRESIÓN: ENLACE A VENTANA PADRE)
 # =============================================================================
 import streamlit as st
 import streamlit.components.v1 as components
@@ -28,9 +28,9 @@ b64_tym    = img_to_bytes(LOGO_TYM_FILE)
 # --- ESTILOS CSS ---
 st.markdown(f"""
 <style>
-    /* --- 1. ESTILOS PANTALLA (NO TOCAMOS NADA DE ESTO) --- */
+    /* --- 1. ESTILOS PANTALLA --- */
     
-    /* Usamos variables nativas para respetar el tema del usuario */
+    /* Variables de color nativas */
     h1, h2, h3, .main-title, .cover-title, .sub-title {{
         color: var(--text-color) !important;
     }}
@@ -42,7 +42,7 @@ st.markdown(f"""
     
     .print-only-header {{ display: none; }}
 
-    /* Tarjetas y Tablas */
+    /* Tarjetas */
     .card-box {{ background-color: #f8f9fa !important; padding: 18px; border-radius: 10px; border: 1px solid #e0e0e0; border-left: 5px solid #003366; margin-bottom: 15px; }}
     .kpi-club-box {{ background-color: #eef !important; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }}
     .stat-label {{ font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }}
@@ -62,14 +62,20 @@ st.markdown(f"""
     .alert-red {{ background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }}
     .coach-section {{ margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }}
 
-    /* --- 2. ESTILOS DE IMPRESIÓN (EL ARREGLO) --- */
+    /* --- 2. ESTILOS DE IMPRESIÓN --- */
     @media print {{
-        /* Ocultar interfaz de usuario */
-        [data-testid="stSidebar"], header, footer, .stButton, button, .stSelectbox, .no-print {{
+        /* Ocultar Sidebar y Botones */
+        [data-testid="stSidebar"], 
+        header, 
+        footer, 
+        .stButton, 
+        button, 
+        .stSelectbox,
+        iframe {{  /* ESTO OCULTARÁ EL BOTÓN DE IMPRIMIR EN EL PDF */
             display: none !important;
         }}
         
-        /* FIX CLAVE: Romper la altura fija para que el contenido fluya en el papel */
+        /* Ajuste de altura para que se vea todo el contenido */
         html, body, .stApp {{
             height: auto !important;
             overflow: visible !important;
@@ -79,16 +85,14 @@ st.markdown(f"""
         .main .block-container {{
             max-width: 100% !important;
             padding: 0 !important;
-            height: auto !important;
-            overflow: visible !important;
         }}
 
-        /* Forzar textos a negro para asegurar visibilidad en papel */
+        /* Forzar Textos Negros */
         h1, h2, h3, h4, h5, h6, p, span, div, td, th, li {{
             color: black !important;
         }}
 
-        /* Mostrar encabezado */
+        /* Mostrar Encabezado PDF */
         .print-only-header {{
             display: flex !important;
             justify-content: space-between;
@@ -137,11 +141,12 @@ def render_pdf_header(titulo="REPORTE DE RENDIMIENTO"):
     </div>
     """, unsafe_allow_html=True)
 
-# --- HELPER: BOTÓN DE IMPRESIÓN ---
+# --- HELPER: BOTÓN DE IMPRESIÓN (JS FIXED) ---
 def boton_imprimir_pdf():
+    # FIX: window.parent.print() para imprimir la APP, no el botón
     btn_html = """
-    <div class="no-print" style="text-align: center; margin: 20px 0;">
-        <button onclick="window.print()" style="
+    <div style="text-align: center; margin: 20px 0;">
+        <button onclick="window.parent.print()" style="
             background-color: #003366; 
             color: white; 
             padding: 12px 24px; 
@@ -168,7 +173,7 @@ def render_logos_sidebar(mostrar_boton_pdf=False):
     if mostrar_boton_pdf:
         st.sidebar.markdown("---")
         with st.sidebar:
-            boton_imprimir_pdf() # INYECTA EL BOTÓN AQUÍ
+            boton_imprimir_pdf()
             
     if st.session_state['club_activo'] == "TYM Triathlon":
         st.sidebar.markdown("---")

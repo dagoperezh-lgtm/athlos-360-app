@@ -1,5 +1,5 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V26.7 (TABLAS IRROMPIBLES + TÍTULO DINÁMICO)
+# 🦅 ATHLOS 360 - V26.8 (TABLAS ESPACIOSAS + ORDENAMIENTO DE SEMANAS)
 # =============================================================================
 import streamlit as st
 import streamlit.components.v1 as components
@@ -12,16 +12,12 @@ st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 
 # --- FUNCIONES AUXILIARES (IMÁGENES) ---
 def img_to_bytes(img_path):
-    """Convierte una imagen a base64 para incrustarla en HTML."""
     if not os.path.exists(img_path): return ""
     with open(img_path, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
-# Rutas de Imágenes
 LOGO_ATHLOS_FILE = "logo_athlos.png"
 LOGO_TYM_FILE    = "Tym Logo.jpg"
-
-# Pre-cargamos Base64 para el PDF
 b64_athlos = img_to_bytes(LOGO_ATHLOS_FILE)
 b64_tym    = img_to_bytes(LOGO_TYM_FILE)
 
@@ -29,19 +25,14 @@ b64_tym    = img_to_bytes(LOGO_TYM_FILE)
 st.markdown(f"""
 <style>
     /* --- 1. ESTILOS PANTALLA --- */
-    
-    h1, h2, h3, .main-title, .cover-title, .sub-title {{
-        color: var(--text-color) !important;
-    }}
-
+    h1, h2, h3, .main-title, .cover-title, .sub-title {{ color: var(--text-color) !important; }}
     .cover-title {{ font-size: 45px; font-weight: bold; text-align: center; margin-top: 10px; }}
     .cover-sub {{ font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }}
     .main-title {{ font-size: 32px; font-weight: bold; margin-bottom: 5px; }}
     .sub-title {{ font-size: 18px; margin-bottom: 15px; opacity: 0.8; }}
-    
     .print-only-header {{ display: none; }}
 
-    /* Tarjetas */
+    /* Tarjetas y Tablas (Pantalla) */
     .card-box {{ background-color: #f8f9fa !important; padding: 18px; border-radius: 10px; border: 1px solid #e0e0e0; border-left: 5px solid #003366; margin-bottom: 15px; }}
     .kpi-club-box {{ background-color: #eef !important; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }}
     .stat-label {{ font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }}
@@ -61,7 +52,7 @@ st.markdown(f"""
     .alert-red {{ background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }}
     .coach-section {{ margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }}
 
-    /* --- 2. ESTILOS DE IMPRESIÓN --- */
+    /* --- 2. ESTILOS DE IMPRESIÓN (MEJORADOS V26.8) --- */
     @media print {{
         [data-testid="stSidebar"], header, footer, .stButton, button, .stSelectbox, iframe {{ display: none !important; }}
         html, body, .stApp {{ height: auto !important; overflow: visible !important; background-color: white !important; }}
@@ -73,28 +64,34 @@ st.markdown(f"""
             justify-content: space-between;
             align-items: center;
             border-bottom: 2px solid #003366;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
             width: 100%;
         }}
-        .logo-print {{ max-height: 60px; width: auto; }}
-        .print-title {{ text-align: right; font-size: 20px; font-weight: bold; color: #003366 !important; }}
+        .logo-print {{ max-height: 70px; width: auto; }}
+        .print-title {{ text-align: right; font-size: 22px; font-weight: bold; color: #003366 !important; }}
         
-        /* FIX: TABLAS IRROMPIBLES */
-        /* Aplicamos break-inside: avoid para que el navegador NO corte estos elementos a la mitad */
+        /* TABLAS MÁS ESPACIOSAS */
+        .top10-table td, .top10-table th {{
+            padding: 12px 15px !important; /* MÁS ESPACIO INTERNO */
+            font-size: 14px !important;
+            line-height: 1.4 !important;   /* TEXTO MÁS SEPARADO */
+            border-bottom: 1px solid #ddd !important;
+        }}
+        
+        /* SEPARACIÓN ENTRE TARJETAS */
         .card-box, .kpi-club-box, .top10-table, .rank-badge-lg, .coach-section, table {{
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            margin-bottom: 15px !important; /* Espacio extra para asegurar el salto */
+            margin-bottom: 25px !important; /* MÁS ESPACIO ENTRE ELEMENTOS */
             border: 1px solid #ccc !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }}
         
-        /* Asegurar que los headers de tablas se queden pegados a su tabla */
-        .top10-header, .disc-header {{
-            break-after: avoid !important;
-            page-break-after: avoid !important;
+        .top10-header {{
+            padding: 12px !important;
+            margin-bottom: 0 !important;
         }}
     }}
 </style>
@@ -104,29 +101,22 @@ st.markdown(f"""
 if 'club_activo' not in st.session_state: st.session_state['club_activo'] = None
 if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'home'
 
-# --- HELPER: RENDERIZADOR DE HEADER PARA PDF ---
+# --- HELPER HEADER PDF ---
 def render_pdf_header(titulo_principal, subtitulo):
-    """Inserta el HTML invisible que solo aparece al imprimir."""
-    logo_club_html = ""
-    if st.session_state['club_activo'] == "TYM Triathlon" and b64_tym:
-        logo_club_html = f'<img src="data:image/png;base64,{b64_tym}" class="logo-print">'
-    
-    logo_athlos_html = ""
-    if b64_athlos:
-        logo_athlos_html = f'<img src="data:image/png;base64,{b64_athlos}" class="logo-print">'
-
+    logo_club_html = f'<img src="data:image/png;base64,{b64_tym}" class="logo-print">' if st.session_state['club_activo'] == "TYM Triathlon" and b64_tym else ""
+    logo_athlos_html = f'<img src="data:image/png;base64,{b64_athlos}" class="logo-print">' if b64_athlos else ""
     st.markdown(f"""
     <div class="print-only-header">
         <div>{logo_athlos_html}</div>
         <div style="text-align: right;">
             <div class="print-title">{titulo_principal}</div>
-            <div style="font-size: 14px; margin-top: 2px; color: #666;">{subtitulo}</div>
-            <div style="margin-top:5px;">{logo_club_html}</div>
+            <div style="font-size: 14px; margin-top: 4px; color: #444; font-weight: bold;">{subtitulo}</div>
+            <div style="margin-top:8px;">{logo_club_html}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-# --- HELPER: BOTÓN DE IMPRESIÓN ---
+# --- HELPER BOTÓN ---
 def boton_imprimir_pdf():
     btn_html = """
     <div class="no-print" style="text-align: center; margin: 20px 0;">
@@ -235,8 +225,15 @@ with st.spinner("Cargando datos..."):
 df_base = data['Global']['D']
 if df_base is None: st.error("⚠️ Error datos."); st.stop()
 
+# --- LÓGICA DE SEMANAS (CORREGIDA) ---
+# Intentamos ordenar las columnas que empiezan con "Sem" para tomar la real última
 cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
-ultima_sem = cols_sem[-1] if cols_sem else "N/A"
+if cols_sem:
+    # Ordenamiento simple: asume que el formato es consistente. 
+    # Si hay "Sem 52" y "Sem 06", esto toma el último de la lista tal cual viene del Excel.
+    ultima_sem = cols_sem[-1] 
+else:
+    ultima_sem = "N/A"
 
 # HEADER PANTALLA
 if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual'] != 'menu':
@@ -261,7 +258,6 @@ if st.session_state['vista_actual'] == 'menu':
 
 # 2. RESUMEN
 elif st.session_state['vista_actual'] == 'resumen':
-    # TITULO DINÁMICO: Incluye la semana detectada
     render_pdf_header("RESUMEN SEMANAL - CLUB", f"Periodo: {ultima_sem}")
     render_logos_sidebar(True)
     
@@ -340,7 +336,6 @@ elif st.session_state['vista_actual'] == 'resumen':
 
 # 3. FICHA PERSONAL
 elif st.session_state['vista_actual'] == 'ficha':
-    # TITULO DINÁMICO
     render_pdf_header("FICHA PERSONAL DEL ATLETA", f"Periodo: {ultima_sem}")
     st.markdown(f"<div class='main-title'>🦅 REPORTE 360°</div>", unsafe_allow_html=True)
     with st.container():

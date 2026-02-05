@@ -1,99 +1,66 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V26.8 (TABLAS ESPACIOSAS + ORDENAMIENTO DE SEMANAS)
+# 🦅 ATHLOS 360 - V26.10 (SPEED EDITION: SIN PDF, MÁXIMA VELOCIDAD)
 # =============================================================================
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import os
-import base64
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
 
-# --- FUNCIONES AUXILIARES (IMÁGENES) ---
-def img_to_bytes(img_path):
-    if not os.path.exists(img_path): return ""
-    with open(img_path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
-
-LOGO_ATHLOS_FILE = "logo_athlos.png"
-LOGO_TYM_FILE    = "Tym Logo.jpg"
-b64_athlos = img_to_bytes(LOGO_ATHLOS_FILE)
-b64_tym    = img_to_bytes(LOGO_TYM_FILE)
-
-# --- ESTILOS CSS ---
-st.markdown(f"""
+# --- ESTILOS CSS (SOLO VISUALIZACIÓN EN PANTALLA) ---
+st.markdown("""
 <style>
-    /* --- 1. ESTILOS PANTALLA --- */
-    h1, h2, h3, .main-title, .cover-title, .sub-title {{ color: var(--text-color) !important; }}
-    .cover-title {{ font-size: 45px; font-weight: bold; text-align: center; margin-top: 10px; }}
-    .cover-sub {{ font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }}
-    .main-title {{ font-size: 32px; font-weight: bold; margin-bottom: 5px; }}
-    .sub-title {{ font-size: 18px; margin-bottom: 15px; opacity: 0.8; }}
-    .print-only-header {{ display: none; }}
+    /* 1. TÍTULOS ADAPTATIVOS (MODO CLARO/OSCURO) */
+    h1, h2, h3, .main-title, .cover-title, .sub-title {
+        color: var(--text-color) !important;
+    }
 
-    /* Tarjetas y Tablas (Pantalla) */
-    .card-box {{ background-color: #f8f9fa !important; padding: 18px; border-radius: 10px; border: 1px solid #e0e0e0; border-left: 5px solid #003366; margin-bottom: 15px; }}
-    .kpi-club-box {{ background-color: #eef !important; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }}
-    .stat-label {{ font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }}
-    .stat-value {{ font-size: 26px; font-weight: bold; color: #000 !important; }}
-    .comp-text {{ font-size: 14px; margin-top: 5px; color: #444 !important; }}
-    .kpi-club-val {{ font-size: 32px; font-weight: bold; color: #003366 !important; }}
-    .kpi-club-lbl {{ font-size: 14px; color: #666 !important; font-weight: bold; text-transform: uppercase; }}
-    .rank-badge-lg {{ background-color: #003366; color: white !important; padding: 10px 20px; border-radius: 10px; font-size: 22px; font-weight: bold; margin-right: 15px; display: inline-block; box-shadow: 0 3px 6px rgba(0,0,0,0.2); border-left: 5px solid #FF4B4B; }}
-    .top10-header {{ background-color: #003366 !important; color: white !important; padding: 10px; border-radius: 5px 5px 0 0; font-weight: bold; }}
-    .top10-table {{ width: 100%; border-collapse: collapse; background-color: white !important; border: 1px solid #ddd; }}
-    .top10-table td, .top10-table th {{ padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; color: #333 !important; }}
-    .disc-header {{ background-color: #E6F0FA !important; padding: 10px 15px; font-weight: bold; font-size: 18px; border-radius: 8px; margin-top: 15px; color: #003366 !important; }}
-    .rank-section-title {{ font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; color: var(--text-color) !important; }}
-    .pos {{ color: #008000 !important; font-weight: bold; }}
-    .neg {{ color: #B22222 !important; font-weight: bold; }}
-    .alert-box {{ padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }}
-    .alert-red {{ background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }}
-    .coach-section {{ margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }}
+    .cover-title { font-size: 45px; font-weight: bold; text-align: center; margin-top: 10px; }
+    .cover-sub { font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }
+    .main-title { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
+    .sub-title { font-size: 18px; margin-bottom: 15px; opacity: 0.8; }
 
-    /* --- 2. ESTILOS DE IMPRESIÓN (MEJORADOS V26.8) --- */
-    @media print {{
-        [data-testid="stSidebar"], header, footer, .stButton, button, .stSelectbox, iframe {{ display: none !important; }}
-        html, body, .stApp {{ height: auto !important; overflow: visible !important; background-color: white !important; }}
-        .main .block-container {{ max-width: 100% !important; padding: 0 !important; }}
-        h1, h2, h3, h4, h5, h6, p, span, div, td, th, li {{ color: black !important; }}
-
-        .print-only-header {{
-            display: flex !important;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #003366;
-            padding-bottom: 15px;
-            margin-bottom: 25px;
-            width: 100%;
-        }}
-        .logo-print {{ max-height: 70px; width: auto; }}
-        .print-title {{ text-align: right; font-size: 22px; font-weight: bold; color: #003366 !important; }}
-        
-        /* TABLAS MÁS ESPACIOSAS */
-        .top10-table td, .top10-table th {{
-            padding: 12px 15px !important; /* MÁS ESPACIO INTERNO */
-            font-size: 14px !important;
-            line-height: 1.4 !important;   /* TEXTO MÁS SEPARADO */
-            border-bottom: 1px solid #ddd !important;
-        }}
-        
-        /* SEPARACIÓN ENTRE TARJETAS */
-        .card-box, .kpi-club-box, .top10-table, .rank-badge-lg, .coach-section, table {{
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-            margin-bottom: 25px !important; /* MÁS ESPACIO ENTRE ELEMENTOS */
-            border: 1px solid #ccc !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }}
-        
-        .top10-header {{
-            padding: 12px !important;
-            margin-bottom: 0 !important;
-        }}
-    }}
+    /* 2. TARJETAS DE DATOS (ISLAS DE LUZ) 
+       Fondo blanco/gris siempre para garantizar lectura de números */
+    .card-box { 
+        background-color: #f8f9fa !important; 
+        padding: 18px; border-radius: 10px; 
+        border: 1px solid #e0e0e0; border-left: 5px solid #003366; 
+        margin-bottom: 15px; 
+    }
+    .kpi-club-box { 
+        background-color: #eef !important; 
+        padding: 20px; border-radius: 10px; 
+        text-align: center; margin-bottom: 20px; 
+    }
+    
+    /* Textos internos de tarjetas (Siempre oscuros para contraste) */
+    .stat-label { font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }
+    .stat-value { font-size: 26px; font-weight: bold; color: #000 !important; }
+    .comp-text { font-size: 14px; margin-top: 5px; color: #444 !important; }
+    .kpi-club-val { font-size: 32px; font-weight: bold; color: #003366 !important; }
+    .kpi-club-lbl { font-size: 14px; color: #666 !important; font-weight: bold; text-transform: uppercase; }
+    
+    /* 3. ELEMENTOS GRÁFICOS */
+    .rank-badge-lg { 
+        background-color: #003366; color: white !important; padding: 10px 20px; border-radius: 10px; 
+        font-size: 22px; font-weight: bold; margin-right: 15px; display: inline-block;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.2); border-left: 5px solid #FF4B4B;
+    }
+    
+    .top10-header { background-color: #003366 !important; color: white !important; padding: 10px; border-radius: 5px 5px 0 0; font-weight: bold; }
+    .top10-table { width: 100%; border-collapse: collapse; background-color: white !important; border: 1px solid #ddd; }
+    .top10-table td, .top10-table th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; color: #333 !important; }
+    
+    .disc-header { background-color: #E6F0FA !important; padding: 10px 15px; font-weight: bold; font-size: 18px; border-radius: 8px; margin-top: 15px; color: #003366 !important; }
+    .rank-section-title { font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; color: var(--text-color) !important; }
+    
+    .pos { color: #008000 !important; font-weight: bold; }
+    .neg { color: #B22222 !important; font-weight: bold; }
+    .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }
+    .alert-red { background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }
+    .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -101,40 +68,15 @@ st.markdown(f"""
 if 'club_activo' not in st.session_state: st.session_state['club_activo'] = None
 if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'home'
 
-# --- HELPER HEADER PDF ---
-def render_pdf_header(titulo_principal, subtitulo):
-    logo_club_html = f'<img src="data:image/png;base64,{b64_tym}" class="logo-print">' if st.session_state['club_activo'] == "TYM Triathlon" and b64_tym else ""
-    logo_athlos_html = f'<img src="data:image/png;base64,{b64_athlos}" class="logo-print">' if b64_athlos else ""
-    st.markdown(f"""
-    <div class="print-only-header">
-        <div>{logo_athlos_html}</div>
-        <div style="text-align: right;">
-            <div class="print-title">{titulo_principal}</div>
-            <div style="font-size: 14px; margin-top: 4px; color: #444; font-weight: bold;">{subtitulo}</div>
-            <div style="margin-top:8px;">{logo_club_html}</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# --- HELPER BOTÓN ---
-def boton_imprimir_pdf():
-    btn_html = """
-    <div class="no-print" style="text-align: center; margin: 20px 0;">
-        <button onclick="window.parent.print()" style="
-            background-color: #003366; color: white; padding: 12px 24px; border: none; border-radius: 8px; 
-            cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-            🖨️ DESCARGAR PDF
-        </button>
-    </div>
-    """
-    components.html(btn_html, height=80)
+# --- RUTAS DE IMÁGENES ---
+LOGO_ATHLOS_FILE = "logo_athlos.png"
+LOGO_TYM_FILE    = "Tym Logo.jpg"
 
 # --- HELPER SIDEBAR ---
-def render_logos_sidebar(mostrar_boton_pdf=False):
-    if os.path.exists(LOGO_ATHLOS_FILE): st.sidebar.image(LOGO_ATHLOS_FILE, use_container_width=True)
-    if mostrar_boton_pdf:
-        st.sidebar.markdown("---")
-        with st.sidebar: boton_imprimir_pdf()
+def render_logos_sidebar():
+    if os.path.exists(LOGO_ATHLOS_FILE): 
+        st.sidebar.image(LOGO_ATHLOS_FILE, use_container_width=True)
+    
     if st.session_state['club_activo'] == "TYM Triathlon":
         st.sidebar.markdown("---")
         if os.path.exists(LOGO_TYM_FILE):
@@ -149,12 +91,15 @@ if st.session_state['club_activo'] is None:
     with c2:
         if os.path.exists(LOGO_ATHLOS_FILE): st.image(LOGO_ATHLOS_FILE, use_container_width=True)
         else: st.markdown("<div class='cover-title'>ATHLOS 360</div>", unsafe_allow_html=True)
+        
         st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
         club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
+        
         if club_sel == "TYM Triathlon":
             if os.path.exists(LOGO_TYM_FILE):
                 cc1, cc2, cc3 = st.columns([1,1,1])
                 with cc2: st.image(LOGO_TYM_FILE, width=150)
+            
             if st.button("INGRESAR 🚀", type="primary", use_container_width=True):
                 st.session_state['club_activo'] = "TYM Triathlon"
                 st.session_state['vista_actual'] = 'menu'
@@ -196,7 +141,9 @@ def clean_num(val):
 
 def fmt_h_m(v):
     if v <= 0.0001: return "-"
-    try: tot = v * 24; h = int(tot); m = int((tot - h) * 60); return f"{h}h {m:02d}m"
+    try:
+        tot = v * 24; h = int(tot); m = int((tot - h) * 60)
+        return f"{h}h {m:02d}m"
     except: return "-"
 
 def fmt_pace(v, sport):
@@ -209,8 +156,11 @@ def fmt_pace(v, sport):
 
 def fmt_diff(v, is_t=False):
     if abs(v) < 0.0001: return "-"
-    signo = "+" if v > 0 else "-"; v = abs(v)
-    if is_t: h = int(v * 24); m = int((v * 24 * 60) % 60); return f"{signo}{h}h {m}m"
+    signo = "+" if v > 0 else "-"
+    v = abs(v)
+    if is_t:
+        h = int(v * 24); m = int((v * 24 * 60) % 60)
+        return f"{signo}{h}h {m}m"
     return f"{signo}{v:.1f}"
 
 # CARGA DE DATOS
@@ -223,30 +173,31 @@ with st.spinner("Cargando datos..."):
     }
 
 df_base = data['Global']['D']
-if df_base is None: st.error("⚠️ Error datos."); st.stop()
+if df_base is None:
+    st.error("⚠️ No se pudo leer el archivo de datos. Por favor, regenera el Excel en Colab.")
+    st.stop()
 
-# --- LÓGICA DE SEMANAS (CORREGIDA) ---
-# Intentamos ordenar las columnas que empiezan con "Sem" para tomar la real última
 cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
 if cols_sem:
-    # Ordenamiento simple: asume que el formato es consistente. 
-    # Si hay "Sem 52" y "Sem 06", esto toma el último de la lista tal cual viene del Excel.
     ultima_sem = cols_sem[-1] 
 else:
     ultima_sem = "N/A"
 
-# HEADER PANTALLA
+# HEADER
 if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual'] != 'menu':
     if st.button("⬅️ Volver al Menú Principal"):
-        st.session_state['vista_actual'] = 'menu'; st.rerun()
+        st.session_state['vista_actual'] = 'menu'
+        st.rerun()
     st.markdown("---")
 
 # --- VISTAS ---
 
 # 1. MENÚ
 if st.session_state['vista_actual'] == 'menu':
-    render_logos_sidebar(False)
-    if st.sidebar.button("🏠 Cerrar Sesión"): st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+    render_logos_sidebar()
+    if st.sidebar.button("🏠 Cerrar Sesión"):
+        st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+
     st.markdown(f"<div class='cover-title'>Hola, Equipo {st.session_state['club_activo']}</div>", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
@@ -258,17 +209,20 @@ if st.session_state['vista_actual'] == 'menu':
 
 # 2. RESUMEN
 elif st.session_state['vista_actual'] == 'resumen':
-    render_pdf_header("RESUMEN SEMANAL - CLUB", f"Periodo: {ultima_sem}")
-    render_logos_sidebar(True)
-    
-    if st.sidebar.button("🏠 Cerrar Sesión"): st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+    render_logos_sidebar()
+    if st.sidebar.button("🏠 Cerrar Sesión"):
+        st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+
     st.markdown(f"<div class='main-title'>📊 Resumen Ejecutivo ({ultima_sem})</div>", unsafe_allow_html=True)
     
     def calc_tot(df, is_t=False):
         if df is None or ultima_sem not in df.columns: return 0
         return sum([clean_time(x) if is_t else clean_num(x) for x in df[ultima_sem]])
 
-    tt = calc_tot(data['Global']['T'], True); td = calc_tot(data['Global']['D'], False); act = sum(1 for x in data['Global']['D'][ultima_sem] if clean_num(x) > 0.1)
+    tt = calc_tot(data['Global']['T'], True)
+    td = calc_tot(data['Global']['D'], False)
+    act = sum(1 for x in data['Global']['D'][ultima_sem] if clean_num(x) > 0.1)
+    
     k1, k2, k3 = st.columns(3)
     with k1: st.markdown(f"<div class='kpi-club-box'><div class='kpi-club-val'>{fmt_h_m(tt)}</div><div class='kpi-club-lbl'>Tiempo Total</div></div>", unsafe_allow_html=True)
     with k2: st.markdown(f"<div class='kpi-club-box'><div class='kpi-club-val'>{td:,.0f} km</div><div class='kpi-club-lbl'>Distancia Total</div></div>", unsafe_allow_html=True)
@@ -278,7 +232,8 @@ elif st.session_state['vista_actual'] == 'resumen':
 
     def top10(df, tit, is_t=False, u=""):
         if df is None or ultima_sem not in df.columns: return
-        d = df.copy(); d['v'] = d[ultima_sem].apply(lambda x: clean_time(x) if is_t else clean_num(x))
+        d = df.copy()
+        d['v'] = d[ultima_sem].apply(lambda x: clean_time(x) if is_t else clean_num(x))
         d = d[d['v']>0.001].sort_values('v', ascending=False).head(10)
         st.markdown(f"<div class='top10-header'>{tit}</div>", unsafe_allow_html=True)
         h = "<table class='top10-table'>"
@@ -293,7 +248,7 @@ elif st.session_state['vista_actual'] == 'resumen':
     with c3: top10(data['Global']['A'], "⛰️ Altimetría Total", False, "m")
 
     st.markdown("#### Desglose por Disciplina")
-    c1, c2 = st.columns(2); 
+    c1, c2 = st.columns(2)
     with c1: top10(data['Nat']['D'], "🏊 Distancia Natación", False, "km")
     with c2: top10(data['Nat']['T'], "🏊 Tiempo Natación", True)
 
@@ -312,66 +267,92 @@ elif st.session_state['vista_actual'] == 'resumen':
     with cc1:
         with st.expander("🚨 Ver Semáforo de Desbalance", expanded=False):
             st.caption("Atletas activos sin disciplina.")
-            alertas_html = ""; df_act = data['Global']['D']
+            alertas_html = ""
+            df_act = data['Global']['D']
             if df_act is not None:
                 for _, row in df_act.iterrows():
-                    nom = row['Nombre']; 
+                    nom = row['Nombre']
                     if clean_num(row[ultima_sem]) > 0: 
                         nat_val = 0; bici_val = 0; trote_val = 0
-                        if data['Nat']['D'] is not None: r = data['Nat']['D'][data['Nat']['D']['Nombre']==nom]; nat_val = clean_num(r[ultima_sem].values[0]) if not r.empty else 0
-                        if data['Bici']['D'] is not None: r = data['Bici']['D'][data['Bici']['D']['Nombre']==nom]; bici_val = clean_num(r[ultima_sem].values[0]) if not r.empty else 0
-                        if data['Trote']['D'] is not None: r = data['Trote']['D'][data['Trote']['D']['Nombre']==nom]; trote_val = clean_num(r[ultima_sem].values[0]) if not r.empty else 0
+                        if data['Nat']['D'] is not None:
+                            r = data['Nat']['D'][data['Nat']['D']['Nombre']==nom]
+                            if not r.empty: nat_val = clean_num(r[ultima_sem].values[0])
+                        if data['Bici']['D'] is not None:
+                            r = data['Bici']['D'][data['Bici']['D']['Nombre']==nom]
+                            if not r.empty: bici_val = clean_num(r[ultima_sem].values[0])
+                        if data['Trote']['D'] is not None:
+                            r = data['Trote']['D'][data['Trote']['D']['Nombre']==nom]
+                            if not r.empty: trote_val = clean_num(r[ultima_sem].values[0])
+
                         missing = []
-                        if nat_val == 0: missing.append("Agua"); 
-                        if bici_val == 0: missing.append("Bici"); 
+                        if nat_val == 0: missing.append("Agua")
+                        if bici_val == 0: missing.append("Bici")
                         if trote_val == 0: missing.append("Trote")
-                        if missing: alertas_html += f"<div class='alert-box alert-red'>{nom}: Sin {' / '.join(missing)}</div>"
+                        
+                        if missing:
+                            alertas_html += f"<div class='alert-box alert-red'>{nom}: Sin {' / '.join(missing)}</div>"
+            
             if alertas_html == "": alertas_html = "<div style='color:green;'>✅ Todos cumplieron.</div>"
             st.markdown(alertas_html, unsafe_allow_html=True)
+
     with cc2:
-        st.markdown("**🔥 El Podio de Resistencia**")
+        st.markdown("**🔥 El Podio de Resistencia (Sesión Más Larga)**")
         c_sub1, c_sub2 = st.columns(2)
-        with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo", False, "km")
-        with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote", False, "km")
+        with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo (1 sesión)", False, "km")
+        with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote (1 sesión)", False, "km")
 
 # 3. FICHA PERSONAL
 elif st.session_state['vista_actual'] == 'ficha':
-    render_pdf_header("FICHA PERSONAL DEL ATLETA", f"Periodo: {ultima_sem}")
     st.markdown(f"<div class='main-title'>🦅 REPORTE 360°</div>", unsafe_allow_html=True)
+    
     with st.container():
         st.info("👇 **Busca tu nombre aquí:**")
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
         nombres.insert(0, " Selecciona...")
         sel = st.selectbox("Atleta:", nombres, key="atleta_selector", label_visibility="collapsed")
-    render_logos_sidebar(True)
-    if st.sidebar.button("🏠 Cerrar Sesión"): st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+    
+    render_logos_sidebar()
+    if st.sidebar.button("🏠 Cerrar Sesión"):
+        st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+
     st.markdown("---")
-    if sel == " Selecciona...": st.info("👈 Selecciona tu nombre.")
+
+    if sel == " Selecciona...":
+        st.info("👈 Selecciona tu nombre en el buscador de arriba.")
     else:
         def get_rank(df):
             if df is None or ultima_sem not in df.columns: return "-"
-            d = df.copy(); it = ':' in str(d[ultima_sem].iloc[0])
+            d = df.copy()
+            it = ':' in str(d[ultima_sem].iloc[0])
             d['v'] = d[ultima_sem].apply(lambda x: clean_time(x) if it else clean_num(x))
             d['r'] = d['v'].rank(ascending=False, method='min')
             mask = d['Nombre'].astype(str).str.lower() == str(sel).lower()
             return int(d[mask]['r'].values[0]) if not d[mask].empty else "-"
-        rd = get_rank(data['Global']['D']); rt = get_rank(data['Global']['T'])
-        st.markdown(f"<div class='sub-title'>Atleta: {sel} | {ultima_sem}</div>", unsafe_allow_html=True)
+
+        rd = get_rank(data['Global']['D'])
+        rt = get_rank(data['Global']['T'])
+
+        st.markdown(f"<div class='sub-title'>Atleta: {sel} | Semana: {ultima_sem}</div>", unsafe_allow_html=True)
         st.markdown("<div class='rank-section-title'>🏆 RANKING EN EL CLUB</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='rank-container'><span class='rank-badge-lg'>#{rd} en Distancia</span><span class='rank-badge-lg'>#{rt} en Tiempo</span></div>", unsafe_allow_html=True)
-        
+
         def kpi(cat, k, is_t=False):
             df = data[cat].get(k)
             if df is None: return 0,0,0
             vt = [clean_time(x) if is_t else clean_num(x) for x in df[ultima_sem]] if ultima_sem in df.columns else []
             at = sum(vt)/len(vt) if vt else 0
-            row = df[df['Nombre'].astype(str).str.lower() == str(sel).lower()]; val, ah = 0, 0
+            row = df[df['Nombre'].astype(str).str.lower() == str(sel).lower()]
+            val, ah = 0, 0
             if not row.empty:
                 val = clean_time(row[ultima_sem].values[0]) if is_t else clean_num(row[ultima_sem].values[0])
                 h_vals = [clean_time(row[c].values[0]) if is_t else clean_num(row[c].values[0]) for c in cols_sem if c in row.columns]
                 ah = sum(h_vals)/len(h_vals) if h_vals else 0
             return val, at, ah
-        tv, ta, th = kpi('Global', 'T', True); dv, da, dh = kpi('Global', 'D', False); av, aa, ah = kpi('Global', 'A', False)
+
+        tv, ta, th = kpi('Global', 'T', True)
+        dv, da, dh = kpi('Global', 'D', False)
+        av, aa, ah = kpi('Global', 'A', False)
+
         c1, c2, c3 = st.columns(3)
         with c1: st.markdown(f"<div class='card-box'><div class='stat-label'>⏱️ Tiempo</div><div class='stat-value'>{fmt_h_m(tv)}</div><div class='comp-text'>👥 {fmt_diff(tv-ta, True)} | 📅 {fmt_diff(tv-th, True)}</div></div>", unsafe_allow_html=True)
         with c2: st.markdown(f"<div class='card-box'><div class='stat-label'>📏 Distancia</div><div class='stat-value'>{dv:.1f} km</div><div class='comp-text'>👥 {fmt_diff(dv-da)} | 📅 {fmt_diff(dv-dh)}</div></div>", unsafe_allow_html=True)
@@ -379,24 +360,37 @@ elif st.session_state['vista_actual'] == 'ficha':
 
         def draw_disc(tit, icon, cat, xtype):
             st.markdown(f"<div class='disc-header'>{icon} {tit}</div>", unsafe_allow_html=True)
-            t_v, t_a, t_h = kpi(cat, 'T', True); d_v, d_a, d_h = kpi(cat, 'D', False)
+            t_v, t_a, t_h = kpi(cat, 'T', True)
+            d_v, d_a, d_h = kpi(cat, 'D', False)
+            
             def row(l, v, d_eq, d_eq_txt, d_hi, d_hi_txt):
-                ce = "pos" if d_eq >= 0 else "neg"; ch = "pos" if d_hi >= 0 else "neg"
-                te = d_eq_txt if d_eq != 0 else "-"; th = d_hi_txt if d_hi != 0 else "-"
+                ce = "pos" if d_eq >= 0 else "neg"
+                ch = "pos" if d_hi >= 0 else "neg"
+                te = d_eq_txt if d_eq != 0 else "-"
+                th = d_hi_txt if d_hi != 0 else "-"
                 return f"<tr><td><b>{l}</b></td><td>{v}</td><td class='{ce}'>{te}</td><td class='{ch}'>{th}</td></tr>"
+
             h = f"<table style='width:100%; font-size:14px;'><tr style='color:#666; border-bottom:1px solid #ddd;'><th>Métrica</th><th>Dato</th><th>Vs Eq</th><th>Vs Hist</th></tr>"
+            
             h += row("Tiempo", fmt_h_m(t_v), t_v-t_a, fmt_diff(t_v-t_a, True), t_v-t_h, fmt_diff(t_v-t_h, True))
             h += row("Distancia", f"{d_v:.1f} km", d_v-d_a, fmt_diff(d_v-d_a), d_v-d_h, fmt_diff(d_v-d_h))
+
             if xtype == 'elev': 
-                e_v, e_a, e_h = kpi(cat, 'E', False); h += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
-                sp_v = d_v/(t_v*24) if t_v>0.001 else 0; sp_a = d_a/(t_a*24) if t_a>0.001 else 0; h += row("Velocidad", f"{sp_v:.1f} km/h", sp_v-sp_a, fmt_diff(sp_v-sp_a), 0, "-")
+                e_v, e_a, e_h = kpi(cat, 'E', False)
+                h += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
+                sp_v = d_v/(t_v*24) if t_v>0.001 else 0
+                sp_a = d_a/(t_a*24) if t_a>0.001 else 0
+                h += row("Velocidad", f"{sp_v:.1f} km/h", sp_v-sp_a, fmt_diff(sp_v-sp_a), 0, "-")
             elif xtype == 'run': 
-                r_v, r_a, r_h = kpi(cat, 'R', True); h += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(r_v, 'run')}</td><td>-</td><td>-</td></tr>"
-                e_v, e_a, e_h = kpi(cat, 'E', False); 
+                r_v, r_a, r_h = kpi(cat, 'R', True)
+                h += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(r_v, 'run')}</td><td>-</td><td>-</td></tr>"
+                e_v, e_a, e_h = kpi(cat, 'E', False)
                 if e_v > 0: h += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
             else:
-                r_v, r_a, r_h = kpi(cat, 'R', True); h += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(r_v, 'swim')}</td><td>-</td><td>-</td></tr>"
+                r_v, r_a, r_h = kpi(cat, 'R', True)
+                h += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(r_v, 'swim')}</td><td>-</td><td>-</td></tr>"
             st.markdown(h+"</table>", unsafe_allow_html=True)
+
         c1, c2, c3 = st.columns(3)
         with c1: draw_disc("NATACIÓN", "🏊", "Nat", "swim")
         with c2: draw_disc("CICLISMO", "🚴", "Bici", "elev")

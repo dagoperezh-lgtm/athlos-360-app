@@ -1,5 +1,5 @@
 # =============================================================================
-# 🏃 METRI KM - V27.2 (FIX: DETECCIÓN AUTOMÁTICA DE LOGO JPG/PNG)
+# 🏃 METRI KM - V27.3 (FIX: TAMAÑO DE LOGO CONTROLADO)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -85,7 +85,8 @@ if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'h
 # --- HELPER SIDEBAR ---
 def render_logos_sidebar():
     if LOGO_ACTIVO: 
-        st.sidebar.image(LOGO_ACTIVO, use_container_width=True)
+        # FIX TAMAÑO: width=220 px (Tamaño controlado para barra lateral)
+        st.sidebar.image(LOGO_ACTIVO, width=220)
     else:
         st.sidebar.markdown("## 🟠 Metri KM")
 
@@ -102,11 +103,13 @@ if st.session_state['club_activo'] is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         if LOGO_ACTIVO: 
-            st.image(LOGO_ACTIVO, use_container_width=True)
+            # FIX TAMAÑO PORTADA: width=300 px (Tamaño controlado para portada)
+            st.image(LOGO_ACTIVO, width=300)
         else: 
             st.markdown("<div class='cover-title'>Metri KM</div>", unsafe_allow_html=True)
         
         st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
+        
         club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
         
         if club_sel == "TYM Triathlon":
@@ -114,6 +117,7 @@ if st.session_state['club_activo'] is None:
                 cc1, cc2, cc3 = st.columns([1,1,1])
                 with cc2: st.image(LOGO_TYM_FILE, width=150)
             
+            # Botón Naranja Personalizado (Estilo Primary Streamlit)
             if st.button("INGRESAR 🚀", type="primary", use_container_width=True):
                 st.session_state['club_activo'] = "TYM Triathlon"
                 st.session_state['vista_actual'] = 'menu'

@@ -1,9 +1,10 @@
 # =============================================================================
-# 🏃 METRI KM - V27.3 (FIX: TAMAÑO DE LOGO CONTROLADO)
+# 🏃 METRI KM - V27.4 (FIX: CENTRADO PERFECTO DEL LOGO EN PORTADA)
 # =============================================================================
 import streamlit as st
 import pandas as pd
 import os
+import base64
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Metri KM", page_icon="⏱️", layout="wide")
@@ -19,6 +20,12 @@ def encontrar_logo():
 
 LOGO_ACTIVO = encontrar_logo()
 LOGO_TYM_FILE = "Tym Logo.jpg"
+
+# Función para centrar imagen vía HTML (Truco Profesional)
+def get_img_as_base64(file_path):
+    with open(file_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
 # --- ESTILOS CSS (TEMÁTICA ORANGE & BLACK) ---
 st.markdown("""
@@ -75,6 +82,9 @@ st.markdown("""
     .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }
     .alert-red { background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }
     .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
+    
+    /* CENTRADO DE SELECTOR */
+    .stSelectbox label { text-align: center; width: 100%; font-size: 18px !important; color: #555 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -85,7 +95,7 @@ if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'h
 # --- HELPER SIDEBAR ---
 def render_logos_sidebar():
     if LOGO_ACTIVO: 
-        # FIX TAMAÑO: width=220 px (Tamaño controlado para barra lateral)
+        # width=220 px (Tamaño controlado para barra lateral, alineado izq por defecto de sidebar)
         st.sidebar.image(LOGO_ACTIVO, width=220)
     else:
         st.sidebar.markdown("## 🟠 Metri KM")
@@ -103,21 +113,34 @@ if st.session_state['club_activo'] is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         if LOGO_ACTIVO: 
-            # FIX TAMAÑO PORTADA: width=300 px (Tamaño controlado para portada)
-            st.image(LOGO_ACTIVO, width=300)
+            # TRUCO DE CENTRADO HTML:
+            # Usamos base64 para inyectar la imagen con CSS 'margin: 0 auto'
+            # Esto fuerza el centrado perfecto independientemente de la columna
+            img_b64 = get_img_as_base64(LOGO_ACTIVO)
+            st.markdown(
+                f'<div style="text-align: center;"><img src="data:image/png;base64,{img_b64}" width="300"></div>',
+                unsafe_allow_html=True
+            )
         else: 
             st.markdown("<div class='cover-title'>Metri KM</div>", unsafe_allow_html=True)
         
         st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
         
+        # Espaciador
+        st.markdown("<br>", unsafe_allow_html=True)
+        
         club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
         
         if club_sel == "TYM Triathlon":
             if os.path.exists(LOGO_TYM_FILE):
-                cc1, cc2, cc3 = st.columns([1,1,1])
-                with cc2: st.image(LOGO_TYM_FILE, width=150)
+                # Centrado del logo del club también
+                img_tym_b64 = get_img_as_base64(LOGO_TYM_FILE)
+                st.markdown(
+                    f'<div style="text-align: center; margin: 20px 0;"><img src="data:image/png;base64,{img_tym_b64}" width="150"></div>',
+                    unsafe_allow_html=True
+                )
             
-            # Botón Naranja Personalizado (Estilo Primary Streamlit)
+            # Botón
             if st.button("INGRESAR 🚀", type="primary", use_container_width=True):
                 st.session_state['club_activo'] = "TYM Triathlon"
                 st.session_state['vista_actual'] = 'menu'

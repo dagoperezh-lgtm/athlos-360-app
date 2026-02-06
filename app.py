@@ -1,63 +1,83 @@
 # =============================================================================
-# 🦅 ATHLOS 360 - V26.10 (SPEED EDITION: SIN PDF, MÁXIMA VELOCIDAD)
+# 🏃 METRI KM - V27.1 (CORRECCIÓN EXTENSIÓN PNG)
 # =============================================================================
 import streamlit as st
 import pandas as pd
 import os
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Athlos 360", page_icon="🦅", layout="wide")
+st.set_page_config(page_title="Metri KM", page_icon="⏱️", layout="wide")
 
-# --- ESTILOS CSS (SOLO VISUALIZACIÓN EN PANTALLA) ---
+# --- ESTILOS CSS (TEMÁTICA ORANGE & BLACK) ---
 st.markdown("""
 <style>
-    /* 1. TÍTULOS ADAPTATIVOS (MODO CLARO/OSCURO) */
+    /* VARIABLES DE COLOR (Basado en el nuevo Logo) */
+    :root {
+        --primary-orange: #FF6600;
+        --secondary-black: #111111;
+        --accent-grey: #f0f2f6;
+    }
+
+    /* 1. TÍTULOS */
     h1, h2, h3, .main-title, .cover-title, .sub-title {
         color: var(--text-color) !important;
     }
 
-    .cover-title { font-size: 45px; font-weight: bold; text-align: center; margin-top: 10px; }
+    .cover-title { font-size: 50px; font-weight: 800; text-align: center; margin-top: 10px; color: var(--secondary-black); }
     .cover-sub { font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }
-    .main-title { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
+    
+    /* Título principal con acento Naranja */
+    .main-title { 
+        font-size: 32px; 
+        font-weight: bold; 
+        margin-bottom: 5px; 
+        border-bottom: 3px solid var(--primary-orange);
+        display: inline-block;
+        padding-bottom: 5px;
+    }
     .sub-title { font-size: 18px; margin-bottom: 15px; opacity: 0.8; }
 
-    /* 2. TARJETAS DE DATOS (ISLAS DE LUZ) 
-       Fondo blanco/gris siempre para garantizar lectura de números */
+    /* 2. TARJETAS DE DATOS */
     .card-box { 
-        background-color: #f8f9fa !important; 
-        padding: 18px; border-radius: 10px; 
-        border: 1px solid #e0e0e0; border-left: 5px solid #003366; 
+        background-color: white !important; 
+        padding: 18px; border-radius: 12px; 
+        border: 1px solid #e0e0e0; 
+        border-left: 6px solid var(--primary-orange); /* Borde Naranja */
         margin-bottom: 15px; 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     .kpi-club-box { 
-        background-color: #eef !important; 
-        padding: 20px; border-radius: 10px; 
+        background-color: #FFF3E0 !important; /* Fondo Naranja muy suave */
+        padding: 20px; border-radius: 12px; 
         text-align: center; margin-bottom: 20px; 
+        border: 1px solid #FFE0B2;
     }
     
-    /* Textos internos de tarjetas (Siempre oscuros para contraste) */
-    .stat-label { font-size: 15px; font-weight: bold; color: #555 !important; text-transform: uppercase; }
-    .stat-value { font-size: 26px; font-weight: bold; color: #000 !important; }
-    .comp-text { font-size: 14px; margin-top: 5px; color: #444 !important; }
-    .kpi-club-val { font-size: 32px; font-weight: bold; color: #003366 !important; }
-    .kpi-club-lbl { font-size: 14px; color: #666 !important; font-weight: bold; text-transform: uppercase; }
+    /* Textos internos */
+    .stat-label { font-size: 14px; font-weight: bold; color: #666 !important; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-value { font-size: 28px; font-weight: 800; color: var(--secondary-black) !important; }
+    .comp-text { font-size: 13px; margin-top: 5px; color: #555 !important; }
+    
+    .kpi-club-val { font-size: 36px; font-weight: 800; color: var(--primary-orange) !important; }
+    .kpi-club-lbl { font-size: 14px; color: #444 !important; font-weight: bold; text-transform: uppercase; }
     
     /* 3. ELEMENTOS GRÁFICOS */
     .rank-badge-lg { 
-        background-color: #003366; color: white !important; padding: 10px 20px; border-radius: 10px; 
-        font-size: 22px; font-weight: bold; margin-right: 15px; display: inline-block;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.2); border-left: 5px solid #FF4B4B;
+        background-color: var(--secondary-black); 
+        color: white !important; padding: 10px 20px; border-radius: 8px; 
+        font-size: 20px; font-weight: bold; margin-right: 15px; display: inline-block;
+        border-left: 5px solid var(--primary-orange);
     }
     
-    .top10-header { background-color: #003366 !important; color: white !important; padding: 10px; border-radius: 5px 5px 0 0; font-weight: bold; }
+    .top10-header { background-color: var(--secondary-black) !important; color: white !important; padding: 12px; border-radius: 8px 8px 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
     .top10-table { width: 100%; border-collapse: collapse; background-color: white !important; border: 1px solid #ddd; }
-    .top10-table td, .top10-table th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; color: #333 !important; }
+    .top10-table td, .top10-table th { padding: 10px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; color: #333 !important; }
     
-    .disc-header { background-color: #E6F0FA !important; padding: 10px 15px; font-weight: bold; font-size: 18px; border-radius: 8px; margin-top: 15px; color: #003366 !important; }
+    .disc-header { background-color: #FFF3E0 !important; padding: 10px 15px; font-weight: bold; font-size: 18px; border-radius: 8px; margin-top: 15px; color: var(--primary-orange) !important; border: 1px solid #FFE0B2; }
     .rank-section-title { font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; color: var(--text-color) !important; }
     
-    .pos { color: #008000 !important; font-weight: bold; }
-    .neg { color: #B22222 !important; font-weight: bold; }
+    .pos { color: #2E7D32 !important; font-weight: bold; }
+    .neg { color: #C62828 !important; font-weight: bold; }
     .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }
     .alert-red { background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }
     .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
@@ -68,31 +88,38 @@ st.markdown("""
 if 'club_activo' not in st.session_state: st.session_state['club_activo'] = None
 if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'home'
 
-# --- RUTAS DE IMÁGENES ---
-LOGO_ATHLOS_FILE = "logo_athlos.png"
-LOGO_TYM_FILE    = "Tym Logo.jpg"
+# --- RUTAS DE IMÁGENES (CORREGIDO A PNG) ---
+LOGO_METRIKM_FILE = "logo_metrikm.png" 
+LOGO_TYM_FILE     = "Tym Logo.jpg"
 
 # --- HELPER SIDEBAR ---
 def render_logos_sidebar():
-    if os.path.exists(LOGO_ATHLOS_FILE): 
-        st.sidebar.image(LOGO_ATHLOS_FILE, use_container_width=True)
-    
+    # Logo Principal (Metri KM)
+    if os.path.exists(LOGO_METRIKM_FILE): 
+        st.sidebar.image(LOGO_METRIKM_FILE, use_container_width=True)
+    else:
+        st.sidebar.markdown("## 🟠 Metri KM") # Fallback si no hay imagen
+
+    # Logo del Club (Si aplica)
     if st.session_state['club_activo'] == "TYM Triathlon":
         st.sidebar.markdown("---")
         if os.path.exists(LOGO_TYM_FILE):
             c1,c2,c3 = st.sidebar.columns([1,2,1])
             with c2: st.image(LOGO_TYM_FILE, width=150)
-        st.sidebar.markdown("<h3 style='text-align: center; color: inherit;'>TYM Triathlon</h3>", unsafe_allow_html=True)
+        st.sidebar.markdown("<h3 style='text-align: center; color: inherit; font-size: 16px;'>TYM Triathlon</h3>", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
 # --- 1. PORTADA ---
 if st.session_state['club_activo'] is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        if os.path.exists(LOGO_ATHLOS_FILE): st.image(LOGO_ATHLOS_FILE, use_container_width=True)
-        else: st.markdown("<div class='cover-title'>ATHLOS 360</div>", unsafe_allow_html=True)
+        if os.path.exists(LOGO_METRIKM_FILE): 
+            st.image(LOGO_METRIKM_FILE, use_container_width=True)
+        else: 
+            st.markdown("<div class='cover-title'>Metri KM</div>", unsafe_allow_html=True)
         
         st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
+        
         club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
         
         if club_sel == "TYM Triathlon":
@@ -100,6 +127,7 @@ if st.session_state['club_activo'] is None:
                 cc1, cc2, cc3 = st.columns([1,1,1])
                 with cc2: st.image(LOGO_TYM_FILE, width=150)
             
+            # Botón Naranja Personalizado (Estilo Primary Streamlit)
             if st.button("INGRESAR 🚀", type="primary", use_container_width=True):
                 st.session_state['club_activo'] = "TYM Triathlon"
                 st.session_state['vista_actual'] = 'menu'
@@ -239,7 +267,7 @@ elif st.session_state['vista_actual'] == 'resumen':
         h = "<table class='top10-table'>"
         for i, r in enumerate(d.itertuples(), 1):
             val = fmt_h_m(r.v) if is_t else f"{r.v:.1f} {u}"
-            h += f"<tr><td style='width:30px; font-weight:bold; color:#003366;'>#{i}</td><td>{r.Nombre}</td><td style='text-align:right; font-weight:bold; color:#333 !important;'>{val}</td></tr>"
+            h += f"<tr><td style='width:30px; font-weight:bold; color:var(--primary-orange);'>#{i}</td><td>{r.Nombre}</td><td style='text-align:right; font-weight:bold; color:#333 !important;'>{val}</td></tr>"
         st.markdown(h+"</table><br>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
@@ -298,12 +326,12 @@ elif st.session_state['vista_actual'] == 'resumen':
     with cc2:
         st.markdown("**🔥 El Podio de Resistencia (Sesión Más Larga)**")
         c_sub1, c_sub2 = st.columns(2)
-        with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo (1 sesión)", False, "km")
-        with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote (1 sesión)", False, "km")
+        with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo", False, "km")
+        with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote", False, "km")
 
 # 3. FICHA PERSONAL
 elif st.session_state['vista_actual'] == 'ficha':
-    st.markdown(f"<div class='main-title'>🦅 REPORTE 360°</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='main-title'>REPORTE INDIVIDUAL</div>", unsafe_allow_html=True)
     
     with st.container():
         st.info("👇 **Busca tu nombre aquí:**")

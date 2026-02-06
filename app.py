@@ -346,4 +346,66 @@ elif st.session_state['vista_actual'] == 'ficha':
         rd = get_rank(data['Global']['D'])
         rt = get_rank(data['Global']['T'])
 
-        st.markdown(f"<div class='sub-title'>Atleta: {sel} | Semana: {
+        st.markdown(f"<div class='sub-title'>Atleta: {sel} | Semana: {ultima_sem}</div>", unsafe_allow_html=True)
+        st.markdown("<div class='rank-section-title'>🏆 RANKING EN EL CLUB</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='rank-container'><span class='rank-badge-lg'>#{rd} en Distancia</span><span class='rank-badge-lg'>#{rt} en Tiempo</span></div>", unsafe_allow_html=True)
+
+        def kpi(cat, k, is_t=False):
+            df = data[cat].get(k)
+            if df is None: return 0,0,0
+            vt = [clean_time(x) if is_t else clean_num(x) for x in df[ultima_sem]] if ultima_sem in df.columns else []
+            at = sum(vt)/len(vt) if vt else 0
+            row = df[df['Nombre'].astype(str).str.lower() == str(sel).lower()]
+            val, ah = 0, 0
+            if not row.empty:
+                val = clean_time(row[ultima_sem].values[0]) if is_t else clean_num(row[ultima_sem].values[0])
+                h_vals = [clean_time(row[c].values[0]) if is_t else clean_num(row[c].values[0]) for c in cols_sem if c in row.columns]
+                ah = sum(h_vals)/len(h_vals) if h_vals else 0
+            return val, at, ah
+
+        tv, ta, th = kpi('Global', 'T', True)
+        dv, da, dh = kpi('Global', 'D', False)
+        av, aa, ah = kpi('Global', 'A', False)
+
+        c1, c2, c3 = st.columns(3)
+        with c1: st.markdown(f"<div class='card-box'><div class='stat-label'>⏱️ Tiempo</div><div class='stat-value'>{fmt_h_m(tv)}</div><div class='comp-text'>👥 {fmt_diff(tv-ta, True)} | 📅 {fmt_diff(tv-th, True)}</div></div>", unsafe_allow_html=True)
+        with c2: st.markdown(f"<div class='card-box'><div class='stat-label'>📏 Distancia</div><div class='stat-value'>{dv:.1f} km</div><div class='comp-text'>👥 {fmt_diff(dv-da)} | 📅 {fmt_diff(dv-dh)}</div></div>", unsafe_allow_html=True)
+        with c3: st.markdown(f"<div class='card-box'><div class='stat-label'>⛰️ Altimetría</div><div class='stat-value'>{av:.0f} m</div><div class='comp-text'>Acumulado Semanal</div></div>", unsafe_allow_html=True)
+
+        def draw_disc(tit, icon, cat, xtype):
+            st.markdown(f"<div class='disc-header'>{icon} {tit}</div>", unsafe_allow_html=True)
+            t_v, t_a, t_h = kpi(cat, 'T', True)
+            d_v, d_a, d_h = kpi(cat, 'D', False)
+            
+            def row(l, v, d_eq, d_eq_txt, d_hi, d_hi_txt):
+                ce = "pos" if d_eq >= 0 else "neg"
+                ch = "pos" if d_hi >= 0 else "neg"
+                te = d_eq_txt if d_eq != 0 else "-"
+                th = d_hi_txt if d_hi != 0 else "-"
+                return f"<tr><td><b>{l}</b></td><td>{v}</td><td class='{ce}'>{te}</td><td class='{ch}'>{th}</td></tr>"
+
+            h = f"<table style='width:100%; font-size:14px;'><tr style='color:#666; border-bottom:1px solid #ddd;'><th>Métrica</th><th>Dato</th><th>Vs Eq</th><th>Vs Hist</th></tr>"
+            
+            h += row("Tiempo", fmt_h_m(t_v), t_v-t_a, fmt_diff(t_v-t_a, True), t_v-t_h, fmt_diff(t_v-t_h, True))
+            h += row("Distancia", f"{d_v:.1f} km", d_v-d_a, fmt_diff(d_v-d_a), d_v-d_h, fmt_diff(d_v-d_h))
+
+            if xtype == 'elev': 
+                e_v, e_a, e_h = kpi(cat, 'E', False)
+                h += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
+                sp_v = d_v/(t_v*24) if t_v>0.001 else 0
+                sp_a = d_a/(t_a*24) if t_a>0.001 else 0
+                h += row("Velocidad", f"{sp_v:.1f} km/h", sp_v-sp_a, fmt_diff(sp_v-sp_a), 0, "-")
+            elif xtype == 'run': 
+                r_v, r_a, r_h = kpi(cat, 'R', True)
+                h += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(r_v, 'run')}</td><td>-</td><td>-</td></tr>"
+                e_v, e_a, e_h = kpi(cat, 'E', False)
+                if e_v > 0: h += f"<tr><td><b>Desnivel</b></td><td>{e_v:.0f} m</td><td>-</td><td>-</td></tr>"
+            else:
+                r_v, r_a, r_h = kpi(cat, 'R', True)
+                h += f"<tr><td><b>Ritmo</b></td><td>{fmt_pace(r_v, 'swim')}</td><td>-</td><td>-</td></tr>"
+            st.markdown(h+"</table>", unsafe_allow_html=True)
+
+        c1, c2, c3 = st.columns(3)
+        with c1: draw_disc("NATACIÓN", "🏊", "Nat", "swim")
+        with c2: draw_disc("CICLISMO", "🚴", "Bici", "elev")
+        with c3: draw_disc("TROTE", "🏃", "Trote", "run")

@@ -1,5 +1,5 @@
 # =============================================================================
-# 🏃 METRI KM - V28.1 (FUSIÓN AUTOMÁTICA + FILTRO ANTI-DUPLICADOS)
+# 🏃 METRI KM - V28.2 (FUSIÓN AUTOMÁTICA + ANTI-DUPLICADOS + NOTA EXPLICATIVA)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -474,3 +474,12 @@ elif st.session_state['vista_actual'] == 'ficha':
         with c1: draw_disc("NATACIÓN", "🏊", "Nat", "swim")
         with c2: draw_disc("CICLISMO", "🚴", "Bici", "elev")
         with c3: draw_disc("TROTE", "🏃", "Trote", "run")
+
+        # --- NOTA EXPLICATIVA DE MÉTRICAS ---
+        st.markdown("""
+        <div style='background-color: #F8F9FA; padding: 15px; border-radius: 8px; border-left: 5px solid var(--primary-orange); margin-top: 30px; font-size: 14px; color: #555;'>
+            <b>💡 Guía de lectura:</b><br>
+            <span style='color: #333;'><b>• Vs Eq (Equipo):</b></span> Compara tu registro de esta semana con el promedio general del club en esta misma semana.<br>
+            <span style='color: #333;'><b>• Vs Hist (Histórico):</b></span> Compara tu registro de esta semana con tu propio promedio de las semanas anteriores.
+        </div>
+        """, unsafe_allow_html=True)

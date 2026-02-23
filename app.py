@@ -1,10 +1,11 @@
 # =============================================================================
-# 🏃 METRI KM - V27.4 (FIX: CENTRADO PERFECTO DEL LOGO EN PORTADA)
+# 🏃 METRI KM - V28 (FUSIÓN AUTOMÁTICA + 100% PRESTACIONES ORIGINALES INTACTAS)
 # =============================================================================
 import streamlit as st
 import pandas as pd
 import os
 import base64
+import io
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Metri KM", page_icon="⏱️", layout="wide")
@@ -95,7 +96,6 @@ if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'h
 # --- HELPER SIDEBAR ---
 def render_logos_sidebar():
     if LOGO_ACTIVO: 
-        # width=220 px (Tamaño controlado para barra lateral, alineado izq por defecto de sidebar)
         st.sidebar.image(LOGO_ACTIVO, width=220)
     else:
         st.sidebar.markdown("## 🟠 Metri KM")
@@ -113,9 +113,6 @@ if st.session_state['club_activo'] is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         if LOGO_ACTIVO: 
-            # TRUCO DE CENTRADO HTML:
-            # Usamos base64 para inyectar la imagen con CSS 'margin: 0 auto'
-            # Esto fuerza el centrado perfecto independientemente de la columna
             img_b64 = get_img_as_base64(LOGO_ACTIVO)
             st.markdown(
                 f'<div style="text-align: center;"><img src="data:image/png;base64,{img_b64}" width="300"></div>',
@@ -125,22 +122,18 @@ if st.session_state['club_activo'] is None:
             st.markdown("<div class='cover-title'>Metri KM</div>", unsafe_allow_html=True)
         
         st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
-        
-        # Espaciador
         st.markdown("<br>", unsafe_allow_html=True)
         
         club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
         
         if club_sel == "TYM Triathlon":
             if os.path.exists(LOGO_TYM_FILE):
-                # Centrado del logo del club también
                 img_tym_b64 = get_img_as_base64(LOGO_TYM_FILE)
                 st.markdown(
                     f'<div style="text-align: center; margin: 20px 0;"><img src="data:image/png;base64,{img_tym_b64}" width="150"></div>',
                     unsafe_allow_html=True
                 )
             
-            # Botón
             if st.button("INGRESAR 🚀", type="primary", use_container_width=True):
                 st.session_state['club_activo'] = "TYM Triathlon"
                 st.session_state['vista_actual'] = 'menu'
@@ -148,7 +141,7 @@ if st.session_state['club_activo'] is None:
     st.stop()
 
 # --- 2. MOTOR DE DATOS ---
-ARCHIVO = "06 Sem (tst).xlsx"
+ARCHIVO = "historico.xlsx"
 
 @st.cache_data(ttl=60, show_spinner=False)
 def get_df_safe(nombre_hoja):
@@ -166,7 +159,7 @@ def get_df_safe(nombre_hoja):
     return None
 
 def clean_time(val):
-    if pd.isna(val): return 0.0
+    if pd.isna(val) or val == 'NC': return 0.0
     s = str(val).strip().split(' ')[-1]
     try:
         if ':' in s:
@@ -204,25 +197,26 @@ def fmt_diff(v, is_t=False):
         return f"{signo}{h}h {m}m"
     return f"{signo}{v:.1f}"
 
-# CARGA DE DATOS
-with st.spinner("Cargando datos..."):
-    data = {
-        'Global': {'T': get_df_safe("Tiempo Total"), 'D': get_df_safe("Distancia Total"), 'A': get_df_safe("Altimetría Total")},
-        'Nat': {'T': get_df_safe("Nat Tiempo") or get_df_safe("Natación"), 'D': get_df_safe("Nat Distancia"), 'R': get_df_safe("Nat Ritmo")},
-        'Bici': {'T': get_df_safe("Ciclismo Tiempo") or get_df_safe("Ciclismo"), 'D': get_df_safe("Ciclismo Distancia"), 'E': get_df_safe("Ciclismo Desnivel"), 'Max': get_df_safe("Ciclismo Max")},
-        'Trote': {'T': get_df_safe("Trote Tiempo") or get_df_safe("Trote"), 'D': get_df_safe("Trote Distancia"), 'R': get_df_safe("Trote Ritmo"), 'E': get_df_safe("Trote Desnivel"), 'Max': get_df_safe("Trote Max")}
-    }
+# CARGA DE DATOS (Manejada de forma segura para permitir arrancar sin archivo inicial)
+data = {}
+df_base = None
+cols_sem = []
+ultima_sem = "N/A"
 
-df_base = data['Global']['D']
-if df_base is None:
-    st.error("⚠️ No se pudo leer el archivo de datos. Por favor, regenera el Excel en Colab.")
-    st.stop()
-
-cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
-if cols_sem:
-    ultima_sem = cols_sem[-1] 
-else:
-    ultima_sem = "N/A"
+if os.path.exists(ARCHIVO):
+    with st.spinner("Cargando datos..."):
+        data = {
+            'Global': {'T': get_df_safe("Tiempo Total"), 'D': get_df_safe("Distancia Total"), 'A': get_df_safe("Altimetría Total")},
+            'Nat': {'T': get_df_safe("Nat Tiempo") or get_df_safe("Natación"), 'D': get_df_safe("Nat Distancia"), 'R': get_df_safe("Nat Ritmo")},
+            'Bici': {'T': get_df_safe("Ciclismo Tiempo") or get_df_safe("Ciclismo"), 'D': get_df_safe("Ciclismo Distancia"), 'E': get_df_safe("Ciclismo Desnivel"), 'Max': get_df_safe("Ciclismo Max")},
+            'Trote': {'T': get_df_safe("Trote Tiempo") or get_df_safe("Trote"), 'D': get_df_safe("Trote Distancia"), 'R': get_df_safe("Trote Ritmo"), 'E': get_df_safe("Trote Desnivel"), 'Max': get_df_safe("Trote Max")}
+        }
+    try:
+        df_base = data['Global']['D']
+        if df_base is not None:
+            cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
+            if cols_sem: ultima_sem = cols_sem[-1] 
+    except: pass
 
 # HEADER
 if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual'] != 'menu':
@@ -240,19 +234,83 @@ if st.session_state['vista_actual'] == 'menu':
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
 
     st.markdown(f"<div class='cover-title'>Hola, Equipo {st.session_state['club_activo']}</div>", unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     with c1:
         st.info("📊 **Resumen del Club**\n\nEstadísticas Globales")
         if st.button("Ver Resumen", use_container_width=True): st.session_state['vista_actual'] = 'resumen'; st.rerun()
     with c2:
         st.info("👤 **Ficha Personal**\n\nDetalle por Atleta")
         if st.button("Ver Ficha", use_container_width=True): st.session_state['vista_actual'] = 'ficha'; st.rerun()
+    with c3:
+        st.warning("⚙️ **Cargar Semana**\n\nActualizar Base de Datos")
+        if st.button("Zona Admin", use_container_width=True): st.session_state['vista_actual'] = 'admin'; st.rerun()
 
-# 2. RESUMEN
+# 2. ZONA ADMIN (MOTOR DE FUSIÓN AUTOMÁTICA)
+elif st.session_state['vista_actual'] == 'admin':
+    st.markdown("<div class='main-title'>⚙️ Cargar Nueva Semana</div>", unsafe_allow_html=True)
+    st.write("Sube el Excel con los datos de la semana para actualizar el Histórico automáticamente.")
+    
+    if not os.path.exists(ARCHIVO):
+        st.error(f"⚠️ No se detecta el archivo base '{ARCHIVO}'. Sube tu archivo histórico a GitHub primero.")
+    else:
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            nombre_sem = st.text_input("Nombre de la Semana (Ej: Sem 06)", placeholder="Sem 06")
+        with col2:
+            archivo_subido = st.file_uploader("Sube el Excel Semanal", type=["xlsx", "csv"])
+            
+        if archivo_subido and nombre_sem:
+            if st.button("🔄 Fusionar y Actualizar Histórico", type="primary"):
+                with st.spinner("Cocinando datos..."):
+                    try:
+                        if archivo_subido.name.endswith('.csv'): df_sem = pd.read_csv(archivo_subido)
+                        else: df_sem = pd.read_excel(archivo_subido)
+                            
+                        df_sem.columns = [str(c).strip() for c in df_sem.columns]
+                        
+                        mapeo_columnas = {
+                            'Tiempo Total': 'Tiempo Total (hh:mm:ss)', 'Distancia Total': 'Distancia Total (km)', 'Altimetría Total': 'Altimetría Total (m)',
+                            'Natación': 'Nat: Tiempo (hh:mm:ss)', 'Nat Distancia': 'Nat: Distancia (km)', 'Nat Ritmo': 'Nat: Ritmo (min/100m)',
+                            'Ciclismo': 'Ciclismo: Tiempo (hh:mm:ss)', 'Ciclismo Distancia': 'Ciclismo: Distancia (km)', 'Ciclismo Desnivel': 'Ciclismo: KOM/Desnivel (m)', 'Ciclismo Max': 'Ciclismo: Más larga (km)',
+                            'Trote': 'Trote: Tiempo (hh:mm:ss)', 'Trote Distancia': 'Trote: Distancia (km)', 'Trote Desnivel': 'Trote: KOM/Desnivel (m)', 'Trote Ritmo': 'Trote: Ritmo (min/km)', 'Trote Max': 'Trote: Más larga (km)',
+                            'CV': 'CV (Equilibrio)'
+                        }
+                        
+                        xls_hist = pd.ExcelFile(ARCHIVO, engine='openpyxl')
+                        output = io.BytesIO()
+                        
+                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                            for sheet in xls_hist.sheet_names:
+                                df_h = pd.read_excel(xls_hist, sheet_name=sheet)
+                                if sheet in mapeo_columnas and 'Nombre' in df_h.columns:
+                                    col_origen = mapeo_columnas[sheet]
+                                    if col_origen in df_sem.columns:
+                                        dict_vals = dict(zip(df_sem['Deportista'].astype(str).str.lower().str.strip(), df_sem[col_origen]))
+                                        df_h[nombre_sem] = df_h['Nombre'].astype(str).str.lower().str.strip().map(dict_vals)
+                                        if any(x in sheet for x in ['Tiempo', 'Natación', 'Ciclismo', 'Trote', 'Ritmo']) and sheet not in ['Ciclismo Distancia', 'Ciclismo Desnivel', 'Ciclismo Max', 'Trote Distancia', 'Trote Desnivel', 'Trote Max']:
+                                            df_h[nombre_sem] = df_h[nombre_sem].fillna('00:00:00')
+                                        else:
+                                            df_h[nombre_sem] = df_h[nombre_sem].fillna(0)
+                                df_h.to_excel(writer, sheet_name=sheet, index=False)
+                        
+                        st.success("✅ ¡Fusión completada con éxito!")
+                        st.download_button(
+                            label="📥 Descargar historico.xlsx Actualizado", data=output.getvalue(), file_name="historico.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary"
+                        )
+                        st.info("👆 Descarga el archivo y súbelo a tu GitHub reemplazando el antiguo. Luego refresca la página.")
+                    except Exception as e:
+                        st.error(f"❌ Error al procesar: {str(e)}")
+
+# 3. RESUMEN
 elif st.session_state['vista_actual'] == 'resumen':
     render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+
+    if df_base is None:
+        st.error("⚠️ No se pudo leer el archivo de datos historico.xlsx. Asegúrate de cargarlo.")
+        st.stop()
 
     st.markdown(f"<div class='main-title'>📊 Resumen Ejecutivo ({ultima_sem})</div>", unsafe_allow_html=True)
     
@@ -342,10 +400,13 @@ elif st.session_state['vista_actual'] == 'resumen':
         with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo", False, "km")
         with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote", False, "km")
 
-# 3. FICHA PERSONAL
+# 4. FICHA PERSONAL
 elif st.session_state['vista_actual'] == 'ficha':
     st.markdown(f"<div class='main-title'>REPORTE INDIVIDUAL</div>", unsafe_allow_html=True)
-    
+    if df_base is None:
+        st.error("⚠️ No se pudo leer el archivo de datos historico.xlsx. Asegúrate de cargarlo.")
+        st.stop()
+        
     with st.container():
         st.info("👇 **Busca tu nombre aquí:**")
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])

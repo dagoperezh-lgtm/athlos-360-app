@@ -1,5 +1,5 @@
 # =============================================================================
-# 🏃 METRI KM - V28 (FUSIÓN AUTOMÁTICA + 100% PRESTACIONES ORIGINALES INTACTAS)
+# 🏃 METRI KM - V28.1 (FUSIÓN AUTOMÁTICA + FILTRO ANTI-DUPLICADOS)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -10,69 +10,40 @@ import io
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Metri KM", page_icon="⏱️", layout="wide")
 
+# --- BASE DE DATOS PRINCIPAL ---
+ARCHIVO = "historico.xlsx"
+
 # --- LÓGICA INTELIGENTE DE LOGOS ---
 def encontrar_logo():
-    """Busca el archivo de logo sin importar si es PNG o JPG."""
     candidatos = ["logo_metrikm.png", "logo_metrikm.jpg", "logo_metrikm.jpeg"]
     for archivo in candidatos:
-        if os.path.exists(archivo):
-            return archivo
+        if os.path.exists(archivo): return archivo
     return None
 
 LOGO_ACTIVO = encontrar_logo()
 LOGO_TYM_FILE = "Tym Logo.jpg"
 
-# Función para centrar imagen vía HTML (Truco Profesional)
 def get_img_as_base64(file_path):
-    with open(file_path, "rb") as f:
-        data = f.read()
+    with open(file_path, "rb") as f: data = f.read()
     return base64.b64encode(data).decode()
 
-# --- ESTILOS CSS (TEMÁTICA ORANGE & BLACK) ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
-    /* VARIABLES DE COLOR */
-    :root {
-        --primary-orange: #FF6600;
-        --secondary-black: #111111;
-    }
-
-    /* 1. TÍTULOS */
-    h1, h2, h3, .main-title, .cover-title, .sub-title {
-        color: var(--text-color) !important;
-    }
-
+    :root { --primary-orange: #FF6600; --secondary-black: #111111; }
+    h1, h2, h3, .main-title, .cover-title, .sub-title { color: var(--text-color) !important; }
     .cover-title { font-size: 50px; font-weight: 800; text-align: center; margin-top: 10px; color: var(--secondary-black); }
     .cover-sub { font-size: 22px; text-align: center; margin-bottom: 40px; opacity: 0.8; }
-    
-    .main-title { 
-        font-size: 32px; font-weight: bold; margin-bottom: 5px; 
-        border-bottom: 3px solid var(--primary-orange); display: inline-block; padding-bottom: 5px;
-    }
+    .main-title { font-size: 32px; font-weight: bold; margin-bottom: 5px; border-bottom: 3px solid var(--primary-orange); display: inline-block; padding-bottom: 5px; }
     .sub-title { font-size: 18px; margin-bottom: 15px; opacity: 0.8; }
-
-    /* 2. TARJETAS */
-    .card-box { 
-        background-color: white !important; padding: 18px; border-radius: 12px; 
-        border: 1px solid #e0e0e0; border-left: 6px solid var(--primary-orange); margin-bottom: 15px; 
-    }
-    .kpi-club-box { 
-        background-color: #FFF3E0 !important; padding: 20px; border-radius: 12px; 
-        text-align: center; margin-bottom: 20px; border: 1px solid #FFE0B2;
-    }
-    
+    .card-box { background-color: white !important; padding: 18px; border-radius: 12px; border: 1px solid #e0e0e0; border-left: 6px solid var(--primary-orange); margin-bottom: 15px; }
+    .kpi-club-box { background-color: #FFF3E0 !important; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px; border: 1px solid #FFE0B2; }
     .stat-label { font-size: 14px; font-weight: bold; color: #666 !important; text-transform: uppercase; }
     .stat-value { font-size: 28px; font-weight: 800; color: var(--secondary-black) !important; }
     .comp-text { font-size: 13px; margin-top: 5px; color: #555 !important; }
     .kpi-club-val { font-size: 36px; font-weight: 800; color: var(--primary-orange) !important; }
     .kpi-club-lbl { font-size: 14px; color: #444 !important; font-weight: bold; text-transform: uppercase; }
-    
-    /* 3. ELEMENTOS GRÁFICOS */
-    .rank-badge-lg { 
-        background-color: var(--secondary-black); color: white !important; 
-        padding: 10px 20px; border-radius: 8px; font-size: 20px; font-weight: bold; 
-        margin-right: 15px; display: inline-block; border-left: 5px solid var(--primary-orange);
-    }
+    .rank-badge-lg { background-color: var(--secondary-black); color: white !important; padding: 10px 20px; border-radius: 8px; font-size: 20px; font-weight: bold; margin-right: 15px; display: inline-block; border-left: 5px solid var(--primary-orange); }
     .top10-header { background-color: var(--secondary-black) !important; color: white !important; padding: 12px; border-radius: 8px 8px 0 0; font-weight: bold; text-transform: uppercase; }
     .top10-table { width: 100%; border-collapse: collapse; background-color: white !important; border: 1px solid #ddd; }
     .top10-table td, .top10-table th { padding: 10px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; color: #333 !important; }
@@ -83,8 +54,6 @@ st.markdown("""
     .alert-box { padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; font-weight: bold; color: #333 !important; }
     .alert-red { background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ffcdd2; }
     .coach-section { margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
-    
-    /* CENTRADO DE SELECTOR */
     .stSelectbox label { text-align: center; width: 100%; font-size: 18px !important; color: #555 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -95,10 +64,8 @@ if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'h
 
 # --- HELPER SIDEBAR ---
 def render_logos_sidebar():
-    if LOGO_ACTIVO: 
-        st.sidebar.image(LOGO_ACTIVO, width=220)
-    else:
-        st.sidebar.markdown("## 🟠 Metri KM")
+    if LOGO_ACTIVO: st.sidebar.image(LOGO_ACTIVO, width=220)
+    else: st.sidebar.markdown("## 🟠 Metri KM")
 
     if st.session_state['club_activo'] == "TYM Triathlon":
         st.sidebar.markdown("---")
@@ -108,41 +75,7 @@ def render_logos_sidebar():
         st.sidebar.markdown("<h3 style='text-align: center; color: inherit; font-size: 16px;'>TYM Triathlon</h3>", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
-# --- 1. PORTADA ---
-if st.session_state['club_activo'] is None:
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        if LOGO_ACTIVO: 
-            img_b64 = get_img_as_base64(LOGO_ACTIVO)
-            st.markdown(
-                f'<div style="text-align: center;"><img src="data:image/png;base64,{img_b64}" width="300"></div>',
-                unsafe_allow_html=True
-            )
-        else: 
-            st.markdown("<div class='cover-title'>Metri KM</div>", unsafe_allow_html=True)
-        
-        st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
-        
-        if club_sel == "TYM Triathlon":
-            if os.path.exists(LOGO_TYM_FILE):
-                img_tym_b64 = get_img_as_base64(LOGO_TYM_FILE)
-                st.markdown(
-                    f'<div style="text-align: center; margin: 20px 0;"><img src="data:image/png;base64,{img_tym_b64}" width="150"></div>',
-                    unsafe_allow_html=True
-                )
-            
-            if st.button("INGRESAR 🚀", type="primary", use_container_width=True):
-                st.session_state['club_activo'] = "TYM Triathlon"
-                st.session_state['vista_actual'] = 'menu'
-                st.rerun()
-    st.stop()
-
-# --- 2. MOTOR DE DATOS ---
-ARCHIVO = "historico.xlsx"
-
+# --- MOTOR DE PROCESAMIENTO DE DATOS ---
 @st.cache_data(ttl=60, show_spinner=False)
 def get_df_safe(nombre_hoja):
     if not os.path.exists(ARCHIVO): return None
@@ -153,7 +86,10 @@ def get_df_safe(nombre_hoja):
                 d = pd.read_excel(xls, sheet_name=key, dtype=str)
                 d.columns = [str(c).strip() for c in d.columns]
                 col = next((c for c in d.columns if c.lower() in ['nombre','deportista','atleta']), None)
-                if col: d.rename(columns={col: 'Nombre'}, inplace=True)
+                if col: 
+                    d.rename(columns={col: 'Nombre'}, inplace=True)
+                    # 🔥 FILTRO ANTI-DUPLICADOS: Elimina espacios ocultos y convierte a Formato Título ("Claudio Correa")
+                    d['Nombre'] = d['Nombre'].astype(str).str.strip().str.title()
                 return d
     except: return None
     return None
@@ -164,8 +100,7 @@ def clean_time(val):
     try:
         if ':' in s:
             p = [float(x) for x in s.split(':')]
-            sec = p[0]*3600 + p[1]*60 + (p[2] if len(p)>2 else 0)
-            return sec / 86400.0
+            return (p[0]*3600 + p[1]*60 + (p[2] if len(p)>2 else 0)) / 86400.0
         return 0.0 if float(s) > 100 else float(s)
     except: return 0.0
 
@@ -184,8 +119,7 @@ def fmt_pace(v, sport):
     if v <= 0.00001: return "-"
     try:
         tot = v * 24 * 60; m = int(tot); s = int((tot - m) * 60)
-        u = "/100m" if sport=='swim' else "/km"
-        return f"{m}:{s:02d} {u}"
+        return f"{m}:{s:02d} {'/100m' if sport=='swim' else '/km'}"
     except: return "-"
 
 def fmt_diff(v, is_t=False):
@@ -197,37 +131,64 @@ def fmt_diff(v, is_t=False):
         return f"{signo}{h}h {m}m"
     return f"{signo}{v:.1f}"
 
-# CARGA DE DATOS (Manejada de forma segura para permitir arrancar sin archivo inicial)
+# CARGA GLOBAL DE VISTAS (Solo si existe el archivo)
 data = {}
 df_base = None
-cols_sem = []
 ultima_sem = "N/A"
+cols_sem = []
 
 if os.path.exists(ARCHIVO):
     with st.spinner("Cargando datos..."):
         data = {
             'Global': {'T': get_df_safe("Tiempo Total"), 'D': get_df_safe("Distancia Total"), 'A': get_df_safe("Altimetría Total")},
-            'Nat': {'T': get_df_safe("Nat Tiempo") or get_df_safe("Natación"), 'D': get_df_safe("Nat Distancia"), 'R': get_df_safe("Nat Ritmo")},
-            'Bici': {'T': get_df_safe("Ciclismo Tiempo") or get_df_safe("Ciclismo"), 'D': get_df_safe("Ciclismo Distancia"), 'E': get_df_safe("Ciclismo Desnivel"), 'Max': get_df_safe("Ciclismo Max")},
-            'Trote': {'T': get_df_safe("Trote Tiempo") or get_df_safe("Trote"), 'D': get_df_safe("Trote Distancia"), 'R': get_df_safe("Trote Ritmo"), 'E': get_df_safe("Trote Desnivel"), 'Max': get_df_safe("Trote Max")}
+            'Nat': {'T': get_df_safe("Natación"), 'D': get_df_safe("Nat Distancia"), 'R': get_df_safe("Nat Ritmo")},
+            'Bici': {'T': get_df_safe("Ciclismo"), 'D': get_df_safe("Ciclismo Distancia"), 'E': get_df_safe("Ciclismo Desnivel"), 'Max': get_df_safe("Ciclismo Max")},
+            'Trote': {'T': get_df_safe("Trote"), 'D': get_df_safe("Trote Distancia"), 'R': get_df_safe("Trote Ritmo"), 'E': get_df_safe("Trote Desnivel"), 'Max': get_df_safe("Trote Max")}
         }
     try:
         df_base = data['Global']['D']
         if df_base is not None:
             cols_sem = [c for c in df_base.columns if c.startswith("Sem")]
             if cols_sem: ultima_sem = cols_sem[-1] 
-    except: pass
+    except:
+        pass
 
-# HEADER
+# --- 1. PORTADA ---
+if st.session_state['club_activo'] is None:
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        if LOGO_ACTIVO: 
+            img_b64 = get_img_as_base64(LOGO_ACTIVO)
+            st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{img_b64}" width="300"></div>', unsafe_allow_html=True)
+        else: 
+            st.markdown("<div class='cover-title'>Metri KM</div>", unsafe_allow_html=True)
+        
+        st.markdown("<div class='cover-sub'>Plataforma de Alto Rendimiento</div>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        club_sel = st.selectbox("Selecciona tu Club:", ["Seleccionar...", "TYM Triathlon"])
+        
+        if club_sel == "TYM Triathlon":
+            if os.path.exists(LOGO_TYM_FILE):
+                img_tym_b64 = get_img_as_base64(LOGO_TYM_FILE)
+                st.markdown(f'<div style="text-align: center; margin: 20px 0;"><img src="data:image/png;base64,{img_tym_b64}" width="150"></div>', unsafe_allow_html=True)
+            
+            if st.button("INGRESAR 🚀", type="primary", use_container_width=True):
+                st.session_state['club_activo'] = "TYM Triathlon"
+                st.session_state['vista_actual'] = 'menu'
+                st.rerun()
+    st.stop()
+
+# ENCABEZADO DE NAVEGACIÓN
 if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual'] != 'menu':
     if st.button("⬅️ Volver al Menú Principal"):
         st.session_state['vista_actual'] = 'menu'
         st.rerun()
     st.markdown("---")
 
-# --- VISTAS ---
+# --- VISTAS DEL SISTEMA ---
 
-# 1. MENÚ
+# 1. MENÚ PRINCIPAL
 if st.session_state['vista_actual'] == 'menu':
     render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
@@ -248,10 +209,10 @@ if st.session_state['vista_actual'] == 'menu':
 # 2. ZONA ADMIN (MOTOR DE FUSIÓN AUTOMÁTICA)
 elif st.session_state['vista_actual'] == 'admin':
     st.markdown("<div class='main-title'>⚙️ Cargar Nueva Semana</div>", unsafe_allow_html=True)
-    st.write("Sube el Excel con los datos de la semana para actualizar el Histórico automáticamente.")
+    st.write("Sube el Excel con los datos de la semana (con todas las columnas) para actualizar el Histórico automáticamente.")
     
     if not os.path.exists(ARCHIVO):
-        st.error(f"⚠️ No se detecta el archivo base '{ARCHIVO}'. Sube tu archivo histórico a GitHub primero.")
+        st.error(f"⚠️ No se detecta el archivo base '{ARCHIVO}' en el sistema. Asegúrate de tenerlo en la carpeta de GitHub.")
     else:
         col1, col2 = st.columns([1, 2])
         with col1:
@@ -263,63 +224,87 @@ elif st.session_state['vista_actual'] == 'admin':
             if st.button("🔄 Fusionar y Actualizar Histórico", type="primary"):
                 with st.spinner("Cocinando datos..."):
                     try:
-                        if archivo_subido.name.endswith('.csv'): df_sem = pd.read_csv(archivo_subido)
-                        else: df_sem = pd.read_excel(archivo_subido)
+                        # 1. Leer Semana Nueva
+                        if archivo_subido.name.endswith('.csv'):
+                            df_sem = pd.read_csv(archivo_subido)
+                        else:
+                            df_sem = pd.read_excel(archivo_subido)
                             
                         df_sem.columns = [str(c).strip() for c in df_sem.columns]
                         
+                        # 2. Mapeo Inteligente (Hoja Histórica -> Columna de Semana)
                         mapeo_columnas = {
-                            'Tiempo Total': 'Tiempo Total (hh:mm:ss)', 'Distancia Total': 'Distancia Total (km)', 'Altimetría Total': 'Altimetría Total (m)',
-                            'Natación': 'Nat: Tiempo (hh:mm:ss)', 'Nat Distancia': 'Nat: Distancia (km)', 'Nat Ritmo': 'Nat: Ritmo (min/100m)',
-                            'Ciclismo': 'Ciclismo: Tiempo (hh:mm:ss)', 'Ciclismo Distancia': 'Ciclismo: Distancia (km)', 'Ciclismo Desnivel': 'Ciclismo: KOM/Desnivel (m)', 'Ciclismo Max': 'Ciclismo: Más larga (km)',
-                            'Trote': 'Trote: Tiempo (hh:mm:ss)', 'Trote Distancia': 'Trote: Distancia (km)', 'Trote Desnivel': 'Trote: KOM/Desnivel (m)', 'Trote Ritmo': 'Trote: Ritmo (min/km)', 'Trote Max': 'Trote: Más larga (km)',
+                            'Tiempo Total': 'Tiempo Total (hh:mm:ss)',
+                            'Distancia Total': 'Distancia Total (km)',
+                            'Altimetría Total': 'Altimetría Total (m)',
+                            'Natación': 'Nat: Tiempo (hh:mm:ss)',
+                            'Nat Distancia': 'Nat: Distancia (km)',
+                            'Nat Ritmo': 'Nat: Ritmo (min/100m)',
+                            'Ciclismo': 'Ciclismo: Tiempo (hh:mm:ss)',
+                            'Ciclismo Distancia': 'Ciclismo: Distancia (km)',
+                            'Ciclismo Desnivel': 'Ciclismo: KOM/Desnivel (m)',
+                            'Ciclismo Max': 'Ciclismo: Más larga (km)',
+                            'Trote': 'Trote: Tiempo (hh:mm:ss)',
+                            'Trote Distancia': 'Trote: Distancia (km)',
+                            'Trote Desnivel': 'Trote: KOM/Desnivel (m)',
+                            'Trote Ritmo': 'Trote: Ritmo (min/km)',
+                            'Trote Max': 'Trote: Más larga (km)',
                             'CV': 'CV (Equilibrio)'
                         }
                         
+                        # 3. Leer Histórico y Fusionar
                         xls_hist = pd.ExcelFile(ARCHIVO, engine='openpyxl')
                         output = io.BytesIO()
                         
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
                             for sheet in xls_hist.sheet_names:
                                 df_h = pd.read_excel(xls_hist, sheet_name=sheet)
+                                
+                                # Si la hoja coincide con nuestro mapeo y tiene nombres
                                 if sheet in mapeo_columnas and 'Nombre' in df_h.columns:
                                     col_origen = mapeo_columnas[sheet]
+                                    
                                     if col_origen in df_sem.columns:
+                                        # Crear diccionario {atleta_minuscula: valor_nuevo}
                                         dict_vals = dict(zip(df_sem['Deportista'].astype(str).str.lower().str.strip(), df_sem[col_origen]))
+                                        # Insertar nueva columna
                                         df_h[nombre_sem] = df_h['Nombre'].astype(str).str.lower().str.strip().map(dict_vals)
+                                        
+                                        # Rellenar vacíos
                                         if any(x in sheet for x in ['Tiempo', 'Natación', 'Ciclismo', 'Trote', 'Ritmo']) and sheet not in ['Ciclismo Distancia', 'Ciclismo Desnivel', 'Ciclismo Max', 'Trote Distancia', 'Trote Desnivel', 'Trote Max']:
                                             df_h[nombre_sem] = df_h[nombre_sem].fillna('00:00:00')
                                         else:
                                             df_h[nombre_sem] = df_h[nombre_sem].fillna(0)
+                                            
                                 df_h.to_excel(writer, sheet_name=sheet, index=False)
                         
                         st.success("✅ ¡Fusión completada con éxito!")
                         st.download_button(
-                            label="📥 Descargar historico.xlsx Actualizado", data=output.getvalue(), file_name="historico.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary"
+                            label="📥 Descargar historico.xlsx Actualizado",
+                            data=output.getvalue(),
+                            file_name="historico.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            type="primary"
                         )
                         st.info("👆 Descarga el archivo y súbelo a tu GitHub reemplazando el antiguo. Luego refresca la página.")
+                        
                     except Exception as e:
                         st.error(f"❌ Error al procesar: {str(e)}")
 
-# 3. RESUMEN
+# 3. RESUMEN DEL CLUB
 elif st.session_state['vista_actual'] == 'resumen':
     render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
 
-    if df_base is None:
-        st.error("⚠️ No se pudo leer el archivo de datos historico.xlsx. Asegúrate de cargarlo.")
-        st.stop()
-
+    if df_base is None: st.warning("No hay datos cargados."); st.stop()
     st.markdown(f"<div class='main-title'>📊 Resumen Ejecutivo ({ultima_sem})</div>", unsafe_allow_html=True)
     
     def calc_tot(df, is_t=False):
         if df is None or ultima_sem not in df.columns: return 0
         return sum([clean_time(x) if is_t else clean_num(x) for x in df[ultima_sem]])
 
-    tt = calc_tot(data['Global']['T'], True)
-    td = calc_tot(data['Global']['D'], False)
+    tt = calc_tot(data['Global']['T'], True); td = calc_tot(data['Global']['D'], False)
     act = sum(1 for x in data['Global']['D'][ultima_sem] if clean_num(x) > 0.1)
     
     k1, k2, k3 = st.columns(3)
@@ -328,17 +313,13 @@ elif st.session_state['vista_actual'] == 'resumen':
     with k3: st.markdown(f"<div class='kpi-club-box'><div class='kpi-club-val'>{act}</div><div class='kpi-club-lbl'>Activos</div></div>", unsafe_allow_html=True)
 
     st.markdown("<h3 style='margin-top:20px;'>🏆 Top 10: Mejores Desempeños</h3>", unsafe_allow_html=True)
-
     def top10(df, tit, is_t=False, u=""):
         if df is None or ultima_sem not in df.columns: return
-        d = df.copy()
-        d['v'] = d[ultima_sem].apply(lambda x: clean_time(x) if is_t else clean_num(x))
+        d = df.copy(); d['v'] = d[ultima_sem].apply(lambda x: clean_time(x) if is_t else clean_num(x))
         d = d[d['v']>0.001].sort_values('v', ascending=False).head(10)
         st.markdown(f"<div class='top10-header'>{tit}</div>", unsafe_allow_html=True)
         h = "<table class='top10-table'>"
-        for i, r in enumerate(d.itertuples(), 1):
-            val = fmt_h_m(r.v) if is_t else f"{r.v:.1f} {u}"
-            h += f"<tr><td style='width:30px; font-weight:bold; color:var(--primary-orange);'>#{i}</td><td>{r.Nombre}</td><td style='text-align:right; font-weight:bold; color:#333 !important;'>{val}</td></tr>"
+        for i, r in enumerate(d.itertuples(), 1): h += f"<tr><td style='width:30px; font-weight:bold; color:var(--primary-orange);'>#{i}</td><td>{r.Nombre}</td><td style='text-align:right; font-weight:bold; color:#333 !important;'>{fmt_h_m(r.v) if is_t else f'{r.v:.1f} {u}'}</td></tr>"
         st.markdown(h+"</table><br>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
@@ -350,17 +331,16 @@ elif st.session_state['vista_actual'] == 'resumen':
     c1, c2 = st.columns(2)
     with c1: top10(data['Nat']['D'], "🏊 Distancia Natación", False, "km")
     with c2: top10(data['Nat']['T'], "🏊 Tiempo Natación", True)
-
     c1, c2, c3 = st.columns(3)
     with c1: top10(data['Bici']['D'], "🚴 Distancia Ciclismo", False, "km")
     with c2: top10(data['Bici']['T'], "🚴 Tiempo Ciclismo", True)
     with c3: top10(data['Bici']['E'], "🚴 Altimetría Ciclismo", False, "m")
-
     c1, c2, c3 = st.columns(3)
     with c1: top10(data['Trote']['D'], "🏃 Distancia Trote", False, "km")
     with c2: top10(data['Trote']['T'], "🏃 Tiempo Trote", True)
     with c3: top10(data['Trote']['E'], "🏃 Altimetría Trote", False, "m")
 
+    # ZONA COACH Y PODIOS
     st.markdown("<div class='coach-section'><h3 style='color:inherit;'>🧠 ZONA COACH</h3></div>", unsafe_allow_html=True)
     cc1, cc2 = st.columns([1, 2])
     with cc1:
@@ -400,13 +380,11 @@ elif st.session_state['vista_actual'] == 'resumen':
         with c_sub1: top10(data['Bici']['Max'], "🚴 Fondo Ciclismo", False, "km")
         with c_sub2: top10(data['Trote']['Max'], "🏃 Fondo Trote", False, "km")
 
-# 4. FICHA PERSONAL
+# 4. FICHA INDIVIDUAL
 elif st.session_state['vista_actual'] == 'ficha':
     st.markdown(f"<div class='main-title'>REPORTE INDIVIDUAL</div>", unsafe_allow_html=True)
-    if df_base is None:
-        st.error("⚠️ No se pudo leer el archivo de datos historico.xlsx. Asegúrate de cargarlo.")
-        st.stop()
-        
+    if df_base is None: st.warning("No hay datos cargados."); st.stop()
+    
     with st.container():
         st.info("👇 **Busca tu nombre aquí:**")
         nombres = sorted([str(x) for x in df_base['Nombre'].unique() if str(x).lower() not in ['nan','0']])
@@ -416,7 +394,6 @@ elif st.session_state['vista_actual'] == 'ficha':
     render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
         st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
-
     st.markdown("---")
 
     if sel == " Selecciona...":

@@ -1,5 +1,5 @@
 # =============================================================================
-# 🏃 METRI KM - V28.2 (FUSIÓN AUTOMÁTICA + ANTI-DUPLICADOS + NOTA EXPLICATIVA)
+# 🏃 METRI KM - V28.3 (FUSIÓN AUTOMÁTICA + LOGIN ADMIN + NOTA + ANTI-DUPLICADOS)
 # =============================================================================
 import streamlit as st
 import pandas as pd
@@ -61,6 +61,7 @@ st.markdown("""
 # SESIÓN
 if 'club_activo' not in st.session_state: st.session_state['club_activo'] = None
 if 'vista_actual' not in st.session_state: st.session_state['vista_actual'] = 'home'
+if 'admin_auth' not in st.session_state: st.session_state['admin_auth'] = False # Estado del candado Admin
 
 # --- HELPER SIDEBAR ---
 def render_logos_sidebar():
@@ -88,7 +89,7 @@ def get_df_safe(nombre_hoja):
                 col = next((c for c in d.columns if c.lower() in ['nombre','deportista','atleta']), None)
                 if col: 
                     d.rename(columns={col: 'Nombre'}, inplace=True)
-                    # 🔥 FILTRO ANTI-DUPLICADOS: Elimina espacios ocultos y convierte a Formato Título ("Claudio Correa")
+                    # 🔥 FILTRO ANTI-DUPLICADOS: Elimina espacios ocultos y convierte a Formato Título
                     d['Nombre'] = d['Nombre'].astype(str).str.strip().str.title()
                 return d
     except: return None
@@ -131,7 +132,7 @@ def fmt_diff(v, is_t=False):
         return f"{signo}{h}h {m}m"
     return f"{signo}{v:.1f}"
 
-# CARGA GLOBAL DE VISTAS (Solo si existe el archivo)
+# CARGA GLOBAL DE VISTAS 
 data = {}
 df_base = None
 ultima_sem = "N/A"
@@ -183,6 +184,7 @@ if st.session_state['club_activo'] is None:
 if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual'] != 'menu':
     if st.button("⬅️ Volver al Menú Principal"):
         st.session_state['vista_actual'] = 'menu'
+        st.session_state['admin_auth'] = False # Cierra sesión admin por seguridad
         st.rerun()
     st.markdown("---")
 
@@ -192,7 +194,10 @@ if st.session_state['vista_actual'] != 'home' and st.session_state['vista_actual
 if st.session_state['vista_actual'] == 'menu':
     render_logos_sidebar()
     if st.sidebar.button("🏠 Cerrar Sesión"):
-        st.session_state['club_activo'] = None; st.session_state['vista_actual'] = 'home'; st.rerun()
+        st.session_state['club_activo'] = None; 
+        st.session_state['vista_actual'] = 'home'; 
+        st.session_state['admin_auth'] = False
+        st.rerun()
 
     st.markdown(f"<div class='cover-title'>Hola, Equipo {st.session_state['club_activo']}</div>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
@@ -203,93 +208,93 @@ if st.session_state['vista_actual'] == 'menu':
         st.info("👤 **Ficha Personal**\n\nDetalle por Atleta")
         if st.button("Ver Ficha", use_container_width=True): st.session_state['vista_actual'] = 'ficha'; st.rerun()
     with c3:
-        st.warning("⚙️ **Cargar Semana**\n\nActualizar Base de Datos")
-        if st.button("Zona Admin", use_container_width=True): st.session_state['vista_actual'] = 'admin'; st.rerun()
+        st.warning("⚙️ **Zona Admin**\n\nActualizar Base de Datos")
+        if st.button("Ingresar Admin", use_container_width=True): st.session_state['vista_actual'] = 'admin'; st.rerun()
 
-# 2. ZONA ADMIN (MOTOR DE FUSIÓN AUTOMÁTICA)
+# 2. ZONA ADMIN (MOTOR DE FUSIÓN AUTOMÁTICA CON LOGIN)
 elif st.session_state['vista_actual'] == 'admin':
-    st.markdown("<div class='main-title'>⚙️ Cargar Nueva Semana</div>", unsafe_allow_html=True)
-    st.write("Sube el Excel con los datos de la semana (con todas las columnas) para actualizar el Histórico automáticamente.")
+    # --- SISTEMA DE LOGIN ADMIN ---
+    if not st.session_state['admin_auth']:
+        st.markdown("<div class='main-title'>🔒 Acceso Administrador</div>", unsafe_allow_html=True)
+        st.info("Esta zona es solo para el administrador. Ingresa la clave para continuar.")
+        
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            pwd = st.text_input("Contraseña:", type="password")
+            if st.button("Desbloquear", type="primary"):
+                if pwd == "TymAdmin":  # <--- AQUÍ ESTÁ LA CONTRASEÑA
+                    st.session_state['admin_auth'] = True
+                    st.rerun()
+                elif pwd != "":
+                    st.error("❌ Contraseña incorrecta.")
     
-    if not os.path.exists(ARCHIVO):
-        st.error(f"⚠️ No se detecta el archivo base '{ARCHIVO}' en el sistema. Asegúrate de tenerlo en la carpeta de GitHub.")
+    # --- PANEL ADMIN (SI ESTÁ DESBLOQUEADO) ---
     else:
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            nombre_sem = st.text_input("Nombre de la Semana (Ej: Sem 06)", placeholder="Sem 06")
-        with col2:
-            archivo_subido = st.file_uploader("Sube el Excel Semanal", type=["xlsx", "csv"])
-            
-        if archivo_subido and nombre_sem:
-            if st.button("🔄 Fusionar y Actualizar Histórico", type="primary"):
-                with st.spinner("Cocinando datos..."):
-                    try:
-                        # 1. Leer Semana Nueva
-                        if archivo_subido.name.endswith('.csv'):
-                            df_sem = pd.read_csv(archivo_subido)
-                        else:
-                            df_sem = pd.read_excel(archivo_subido)
-                            
-                        df_sem.columns = [str(c).strip() for c in df_sem.columns]
-                        
-                        # 2. Mapeo Inteligente (Hoja Histórica -> Columna de Semana)
-                        mapeo_columnas = {
-                            'Tiempo Total': 'Tiempo Total (hh:mm:ss)',
-                            'Distancia Total': 'Distancia Total (km)',
-                            'Altimetría Total': 'Altimetría Total (m)',
-                            'Natación': 'Nat: Tiempo (hh:mm:ss)',
-                            'Nat Distancia': 'Nat: Distancia (km)',
-                            'Nat Ritmo': 'Nat: Ritmo (min/100m)',
-                            'Ciclismo': 'Ciclismo: Tiempo (hh:mm:ss)',
-                            'Ciclismo Distancia': 'Ciclismo: Distancia (km)',
-                            'Ciclismo Desnivel': 'Ciclismo: KOM/Desnivel (m)',
-                            'Ciclismo Max': 'Ciclismo: Más larga (km)',
-                            'Trote': 'Trote: Tiempo (hh:mm:ss)',
-                            'Trote Distancia': 'Trote: Distancia (km)',
-                            'Trote Desnivel': 'Trote: KOM/Desnivel (m)',
-                            'Trote Ritmo': 'Trote: Ritmo (min/km)',
-                            'Trote Max': 'Trote: Más larga (km)',
-                            'CV': 'CV (Equilibrio)'
-                        }
-                        
-                        # 3. Leer Histórico y Fusionar
-                        xls_hist = pd.ExcelFile(ARCHIVO, engine='openpyxl')
-                        output = io.BytesIO()
-                        
-                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                            for sheet in xls_hist.sheet_names:
-                                df_h = pd.read_excel(xls_hist, sheet_name=sheet)
+        st.markdown("<div class='main-title'>⚙️ Cargar Nueva Semana</div>", unsafe_allow_html=True)
+        st.write("Sube el Excel con los datos de la semana (con todas las columnas) para actualizar el Histórico automáticamente.")
+        
+        if not os.path.exists(ARCHIVO):
+            st.error(f"⚠️ No se detecta el archivo base '{ARCHIVO}' en el sistema. Asegúrate de tenerlo en la carpeta de GitHub.")
+        else:
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                nombre_sem = st.text_input("Nombre de la Semana (Ej: Sem 06)", placeholder="Sem 06")
+            with col2:
+                archivo_subido = st.file_uploader("Sube el Excel Semanal", type=["xlsx", "csv"])
+                
+            if archivo_subido and nombre_sem:
+                if st.button("🔄 Fusionar y Actualizar Histórico", type="primary"):
+                    with st.spinner("Cocinando datos..."):
+                        try:
+                            if archivo_subido.name.endswith('.csv'):
+                                df_sem = pd.read_csv(archivo_subido)
+                            else:
+                                df_sem = pd.read_excel(archivo_subido)
                                 
-                                # Si la hoja coincide con nuestro mapeo y tiene nombres
-                                if sheet in mapeo_columnas and 'Nombre' in df_h.columns:
-                                    col_origen = mapeo_columnas[sheet]
-                                    
-                                    if col_origen in df_sem.columns:
-                                        # Crear diccionario {atleta_minuscula: valor_nuevo}
-                                        dict_vals = dict(zip(df_sem['Deportista'].astype(str).str.lower().str.strip(), df_sem[col_origen]))
-                                        # Insertar nueva columna
-                                        df_h[nombre_sem] = df_h['Nombre'].astype(str).str.lower().str.strip().map(dict_vals)
-                                        
-                                        # Rellenar vacíos
-                                        if any(x in sheet for x in ['Tiempo', 'Natación', 'Ciclismo', 'Trote', 'Ritmo']) and sheet not in ['Ciclismo Distancia', 'Ciclismo Desnivel', 'Ciclismo Max', 'Trote Distancia', 'Trote Desnivel', 'Trote Max']:
-                                            df_h[nombre_sem] = df_h[nombre_sem].fillna('00:00:00')
-                                        else:
-                                            df_h[nombre_sem] = df_h[nombre_sem].fillna(0)
+                            df_sem.columns = [str(c).strip() for c in df_sem.columns]
+                            
+                            mapeo_columnas = {
+                                'Tiempo Total': 'Tiempo Total (hh:mm:ss)', 'Distancia Total': 'Distancia Total (km)', 'Altimetría Total': 'Altimetría Total (m)',
+                                'Natación': 'Nat: Tiempo (hh:mm:ss)', 'Nat Distancia': 'Nat: Distancia (km)', 'Nat Ritmo': 'Nat: Ritmo (min/100m)',
+                                'Ciclismo': 'Ciclismo: Tiempo (hh:mm:ss)', 'Ciclismo Distancia': 'Ciclismo: Distancia (km)', 'Ciclismo Desnivel': 'Ciclismo: KOM/Desnivel (m)', 'Ciclismo Max': 'Ciclismo: Más larga (km)',
+                                'Trote': 'Trote: Tiempo (hh:mm:ss)', 'Trote Distancia': 'Trote: Distancia (km)', 'Trote Desnivel': 'Trote: KOM/Desnivel (m)', 'Trote Ritmo': 'Trote: Ritmo (min/km)', 'Trote Max': 'Trote: Más larga (km)',
+                                'CV': 'CV (Equilibrio)'
+                            }
+                            
+                            xls_hist = pd.ExcelFile(ARCHIVO, engine='openpyxl')
+                            output = io.BytesIO()
+                            
+                            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                                for sheet in xls_hist.sheet_names:
+                                    df_h = pd.read_excel(xls_hist, sheet_name=sheet)
+                                    if sheet in mapeo_columnas and 'Nombre' in df_h.columns:
+                                        col_origen = mapeo_columnas[sheet]
+                                        if col_origen in df_sem.columns:
+                                            # Formatear nombres en el reporte semanal antes de cruzar
+                                            dict_vals = dict(zip(df_sem['Deportista'].astype(str).str.strip().str.title(), df_sem[col_origen]))
+                                            # Formatear nombres en el histórico antes de hacer el cruce
+                                            df_h['Nombre_Clean'] = df_h['Nombre'].astype(str).str.strip().str.title()
+                                            df_h[nombre_sem] = df_h['Nombre_Clean'].map(dict_vals)
+                                            df_h = df_h.drop(columns=['Nombre_Clean'])
                                             
-                                df_h.to_excel(writer, sheet_name=sheet, index=False)
-                        
-                        st.success("✅ ¡Fusión completada con éxito!")
-                        st.download_button(
-                            label="📥 Descargar historico.xlsx Actualizado",
-                            data=output.getvalue(),
-                            file_name="historico.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            type="primary"
-                        )
-                        st.info("👆 Descarga el archivo y súbelo a tu GitHub reemplazando el antiguo. Luego refresca la página.")
-                        
-                    except Exception as e:
-                        st.error(f"❌ Error al procesar: {str(e)}")
+                                            if any(x in sheet for x in ['Tiempo', 'Natación', 'Ciclismo', 'Trote', 'Ritmo']) and sheet not in ['Ciclismo Distancia', 'Ciclismo Desnivel', 'Ciclismo Max', 'Trote Distancia', 'Trote Desnivel', 'Trote Max']:
+                                                df_h[nombre_sem] = df_h[nombre_sem].fillna('00:00:00')
+                                            else:
+                                                df_h[nombre_sem] = df_h[nombre_sem].fillna(0)
+                                                
+                                    df_h.to_excel(writer, sheet_name=sheet, index=False)
+                            
+                            st.success("✅ ¡Fusión completada con éxito!")
+                            st.download_button(
+                                label="📥 Descargar historico.xlsx Actualizado",
+                                data=output.getvalue(), file_name="historico.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                type="primary"
+                            )
+                            st.info("👆 Descarga el archivo y súbelo a tu GitHub reemplazando el antiguo. Luego refresca la página.")
+                            
+                        except Exception as e:
+                            st.error(f"❌ Error al procesar: {str(e)}")
 
 # 3. RESUMEN DEL CLUB
 elif st.session_state['vista_actual'] == 'resumen':
